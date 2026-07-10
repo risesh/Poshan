@@ -24,6 +24,12 @@ type Cart = Record<string, number>;
 type CartContextValue = {
   cart: Cart;
   total: number;
+  // False until the localStorage read below has actually run. A consumer
+  // that redirects on an empty cart (e.g. checkout) must wait for this —
+  // on a full page load (not a client-side nav), cart starts at {} for one
+  // render before hydration completes, which looks identical to a
+  // genuinely empty cart unless this flag distinguishes them.
+  hydrated: boolean;
   addItem: (id: string) => void;
   incrementItem: (id: string) => void;
   decrementItem: (id: string) => void;
@@ -56,12 +62,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // available server-side), then hydrates from localStorage after mount —
   // same "flash to real state" behavior the static site already had.
   const [cart, setCartState] = useState<Cart>({});
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     // Intentional: localStorage isn't available during SSR, so hydrating
     // real cart state has to happen post-mount, in an effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCartState(readCart());
+    setHydrated(true);
     const onStorage = (e: StorageEvent) => {
       if (e.key === CART_KEY) setCartState(readCart());
     };
@@ -105,7 +113,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   return (
     <CartContext.Provider
-      value={{ cart, total, addItem, incrementItem, decrementItem, removeItem, clearCart }}
+      value={{ cart, total, hydrated, addItem, incrementItem, decrementItem, removeItem, clearCart }}
     >
       {children}
     </CartContext.Provider>

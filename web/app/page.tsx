@@ -1,7 +1,6 @@
 import Image from "next/image";
 import Footer from "./components/Footer";
 import ProductsSection from "./components/ProductsSection";
-import WelcomeBanner from "./components/WelcomeBanner";
 
 export default function Home() {
   return (
@@ -43,7 +42,6 @@ export default function Home() {
         <span className="trust__item">Traditional Formulations</span>
       </div>
 
-      <WelcomeBanner />
       <ProductsSection />
 
       <Footer />

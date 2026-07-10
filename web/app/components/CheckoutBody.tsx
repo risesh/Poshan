@@ -10,6 +10,8 @@ import { getVariantById } from "@/lib/products";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+type AutocompleteSuggestion = { placeId: string; mainText: string; secondaryText: string };
+
 type Address = {
   id: string;
   label: string;
@@ -50,7 +52,7 @@ export default function CheckoutBody({
   defaultPhone: string;
   defaultName: string;
 }) {
-  const { cart, clearCart } = useCart();
+  const { cart, clearCart, hydrated } = useCart();
   const { user } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -61,15 +63,127 @@ export default function CheckoutBody({
   const [showNewAddressForm, setShowNewAddressForm] = useState(addresses.length === 0);
   const [recipientName, setRecipientName] = useState(defaultName);
   const [recipientPhone, setRecipientPhone] = useState(defaultPhone);
-  const [line1, setLine1] = useState("");
+  const [flatNo, setFlatNo] = useState("");
+  const [streetName, setStreetName] = useState("");
+  const [area, setArea] = useState("");
   const [line2, setLine2] = useState("");
   const [city, setCity] = useState("");
   const [stateVal, setStateVal] = useState("");
   const [postalCode, setPostalCode] = useState("");
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
+  const [formattedAddress, setFormattedAddress] = useState<string | null>(null);
+  const [googlePlaceId, setGooglePlaceId] = useState<string | null>(null);
+  // Google's own typed address components — stored separately from the 3
+  // editable fields above (flatNo/streetName/area) for analytics, so they
+  // stay a stable record of what Google actually geocoded even if the
+  // editable fields get manually tweaked afterward. Null for addresses
+  // entered without using autocomplete.
+  const [googleComponents, setGoogleComponents] = useState<{
+    streetNumber: string | null;
+    route: string | null;
+    subpremise: string | null;
+    premise: string | null;
+    sublocality: string | null;
+    raw: unknown;
+  } | null>(null);
+
+  // Address search (Places Autocomplete + Details, design source 4b).
+  const [searchInput, setSearchInput] = useState("");
+  const [suggestions, setSuggestions] = useState<AutocompleteSuggestion[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  // True once a suggestion has been picked — locks the search input (grey,
+  // disabled) so editing the now-formatted address text can't re-trigger
+  // the debounce effect below and burn a second Autocomplete session on
+  // text the user didn't actually type. The X button clears this.
+  const [addressSelected, setAddressSelected] = useState(false);
+  // A session token bundles every keystroke request plus the final Details
+  // call into one Google-billed "session" instead of billing each request
+  // separately. Lazily generated once (idempotent — only the first render's
+  // assignment sticks), refreshed after each completed selection so the
+  // next search starts its own session.
+  const sessionTokenRef = useRef<string | null>(null);
+  if (sessionTokenRef.current === null) {
+    sessionTokenRef.current = crypto.randomUUID();
+  }
+  const searchSeqRef = useRef(0);
 
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Locked after a selection — searchInput now holds the *result*
+    // (a formatted address), not something the user is typing, so it
+    // must never re-trigger a search on its own.
+    if (addressSelected) return;
+    // Below the 2-char floor, just don't schedule a fetch — no need to
+    // clear suggestions/showDropdown state here too, since the render
+    // below already requires searchInput.trim().length >= 2 to display
+    // anything, so stale state from a previous longer query is inert.
+    if (searchInput.trim().length < 2) return;
+    const seq = ++searchSeqRef.current;
+    const timeout = setTimeout(async () => {
+      try {
+        const res = await fetch("/api/places/autocomplete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: searchInput, sessionToken: sessionTokenRef.current }),
+        });
+        const json = await res.json();
+        // Ignore this response if a newer keystroke already superseded it.
+        if (seq !== searchSeqRef.current) return;
+        setSuggestions(res.ok ? (json.suggestions ?? []) : []);
+        setShowDropdown(true);
+      } catch {
+        if (seq === searchSeqRef.current) setSuggestions([]);
+      }
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [searchInput, addressSelected]);
+
+  const selectSuggestion = async (suggestion: AutocompleteSuggestion) => {
+    setShowDropdown(false);
+    try {
+      const res = await fetch("/api/places/details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ placeId: suggestion.placeId, sessionToken: sessionTokenRef.current }),
+      });
+      const details = await res.json();
+      if (res.ok) {
+        setSearchInput(details.formattedAddress ?? "");
+        setAddressSelected(true);
+        setFlatNo(details.flatNo ?? "");
+        setStreetName(details.streetName ?? "");
+        setArea(details.area ?? "");
+        setCity(details.city ?? "");
+        setStateVal(details.state ?? "");
+        setPostalCode(details.postalCode ?? "");
+        setLat(details.lat ?? null);
+        setLng(details.lng ?? null);
+        setFormattedAddress(details.formattedAddress ?? null);
+        setGooglePlaceId(details.placeId ?? null);
+        setGoogleComponents(details.googleComponents ?? null);
+      }
+    } finally {
+      // This search session is over. Per Google's session model, a token
+      // is only valid for one Autocomplete-to-Details round trip — reusing
+      // it for a later search either gets rejected or billed incorrectly,
+      // so the next search always needs a brand new one.
+      sessionTokenRef.current = crypto.randomUUID();
+    }
+  };
+
+  const clearSelectedAddress = () => {
+    setAddressSelected(false);
+    setSearchInput("");
+    setSuggestions([]);
+    setShowDropdown(false);
+    // Deliberately leaves flatNo/streetName/area/city/state/postalCode as
+    // they are — the fields stay manually editable, and picking a new
+    // suggestion overwrites all of them anyway.
+  };
 
   // clearCart() on a successful order also empties `cart`, which would
   // otherwise re-trigger this same guard and redirect to /cart instead of
@@ -78,10 +192,14 @@ export default function CheckoutBody({
   const orderPlacedRef = useRef(false);
 
   useEffect(() => {
-    if (!orderPlacedRef.current && Object.keys(cart).length === 0) {
+    // Must wait for hydrated — on a full page load (not a client-side
+    // nav from /cart), cart starts at {} for one render before
+    // CartProvider reads localStorage, which is indistinguishable from a
+    // genuinely empty cart unless this waits for that read to finish.
+    if (!orderPlacedRef.current && hydrated && Object.keys(cart).length === 0) {
       router.replace("/cart");
     }
-  }, [cart, router]);
+  }, [cart, hydrated, router]);
 
   const totals = useMemo(() => {
     try {
@@ -97,11 +215,12 @@ export default function CheckoutBody({
     let addressId = selectedAddressId;
 
     if (showNewAddressForm) {
-      if (!recipientName.trim() || !recipientPhone.trim() || !line1.trim() || !city.trim() || !stateVal.trim() || !postalCode.trim()) {
+      if (!recipientName.trim() || !recipientPhone.trim() || !streetName.trim() || !city.trim() || !stateVal.trim() || !postalCode.trim()) {
         setError("Please fill in all required address fields.");
         return;
       }
       setBusy(true);
+      const line1 = [flatNo.trim(), streetName.trim(), area.trim()].filter(Boolean).join(", ");
       const { data, error: insertError } = await supabase
         .from("addresses")
         .insert({
@@ -109,12 +228,22 @@ export default function CheckoutBody({
           label: "Home",
           recipient_name: recipientName.trim(),
           recipient_phone: recipientPhone.trim(),
-          line1: line1.trim(),
+          line1,
           line2: line2.trim() || null,
           city: city.trim(),
           state: stateVal.trim(),
           postal_code: postalCode.trim(),
           is_default: addresses.length === 0,
+          lat,
+          lng,
+          formatted_address: formattedAddress,
+          google_place_id: googlePlaceId,
+          street_number: googleComponents?.streetNumber ?? null,
+          route: googleComponents?.route ?? null,
+          subpremise: googleComponents?.subpremise ?? null,
+          premise: googleComponents?.premise ?? null,
+          sublocality: googleComponents?.sublocality ?? null,
+          raw_place_components: googleComponents?.raw ?? null,
         })
         .select("id")
         .single();
@@ -293,15 +422,111 @@ export default function CheckoutBody({
                   placeholder="+91 98765 43210"
                 />
               </div>
+              <div className="checkout-autocomplete">
+                <span className="checkout-field-label">Search address</span>
+                <div className="checkout-autocomplete__input-wrap">
+                  <input
+                    className={`checkout-input${addressSelected ? " checkout-input--disabled" : ""}`}
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onFocus={() => {
+                      if (suggestions.length > 0) setShowDropdown(true);
+                    }}
+                    onBlur={() => setShowDropdown(false)}
+                    placeholder="Start typing an address or place name"
+                    autoComplete="off"
+                    disabled={addressSelected}
+                  />
+                  {addressSelected && (
+                    <button
+                      type="button"
+                      className="checkout-autocomplete__clear"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={clearSelectedAddress}
+                      aria-label="Clear selected address and search again"
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+                {showDropdown && suggestions.length > 0 && searchInput.trim().length >= 2 && (
+                  <div className="checkout-autocomplete__dropdown">
+                    {suggestions.map((s) => (
+                      <button
+                        type="button"
+                        key={s.placeId}
+                        className="checkout-autocomplete__item"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => selectSuggestion(s)}
+                      >
+                        <svg
+                          className="checkout-autocomplete__item-icon"
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#4A9B8E"
+                          strokeWidth="1.7"
+                        >
+                          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                          <circle cx="12" cy="10" r="2.6"></circle>
+                        </svg>
+                        <div>
+                          <div className="checkout-autocomplete__item-main">{s.mainText}</div>
+                          <div className="checkout-autocomplete__item-secondary">{s.secondaryText}</div>
+                        </div>
+                      </button>
+                    ))}
+                    <div className="checkout-autocomplete__attribution">
+                      <span className="checkout-autocomplete__attribution-label">Powered by</span>
+                      <span className="checkout-autocomplete__google-logo">
+                        <span>G</span>
+                        <span>o</span>
+                        <span>o</span>
+                        <span>g</span>
+                        <span>l</span>
+                        <span>e</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="checkout-address-form__row">
+                <div>
+                  <span className="checkout-field-label">Flat / Plot / House no.</span>
+                  <input
+                    className="checkout-input"
+                    value={flatNo}
+                    onChange={(e) => setFlatNo(e.target.value)}
+                    placeholder="Flat, floor, building"
+                  />
+                </div>
+              </div>
+              <div className="checkout-address-form__row">
+                <div>
+                  <span className="checkout-field-label">Street name</span>
+                  <input
+                    className="checkout-input"
+                    value={streetName}
+                    onChange={(e) => setStreetName(e.target.value)}
+                    placeholder="Street / road"
+                  />
+                </div>
+              </div>
+              <div className="checkout-address-form__row">
+                <div>
+                  <span className="checkout-field-label">Area / Locality</span>
+                  <input
+                    className="checkout-input"
+                    value={area}
+                    onChange={(e) => setArea(e.target.value)}
+                    placeholder="Area, neighbourhood"
+                  />
+                </div>
+              </div>
               <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
-                <span className="checkout-field-label">Address</span>
-                <input
-                  className="checkout-input"
-                  value={line1}
-                  onChange={(e) => setLine1(e.target.value)}
-                  placeholder="Flat, floor, building, street"
-                  style={{ marginBottom: 10 }}
-                />
+                <span className="checkout-field-label">Landmark</span>
                 <input
                   className="checkout-input"
                   value={line2}

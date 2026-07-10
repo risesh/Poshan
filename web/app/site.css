@@ -67,15 +67,15 @@ a { color: inherit; }
 }
 
 .nav__logo {
-  width: 36px;
-  height: 36px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
 }
 
 .nav__wordmark {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 20px;
+  font-size: 22px;
   color: var(--color-ink);
   line-height: 1;
 }
@@ -88,7 +88,7 @@ a { color: inherit; }
 .nav__tagline {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: var(--subtitle-letter-spacing);
   color: var(--color-teal);
   margin-top: 2px;
@@ -102,7 +102,7 @@ a { color: inherit; }
 
 .nav__link {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: rgba(30, 58, 52, 0.65);
@@ -121,7 +121,7 @@ a { color: inherit; }
 
 .nav__signin {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   background: var(--color-ink);
@@ -139,13 +139,13 @@ a { color: inherit; }
    out/Past orders controls rather than replace them. */
 .nav__avatar {
   position: relative;
-  width: 34px;
-  height: 34px;
+  width: 37px;
+  height: 37px;
   border-radius: 50%;
   background: var(--color-teal);
   color: var(--color-bone);
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 14.3px;
   font-weight: 700;
   letter-spacing: 0.02em;
   display: flex;
@@ -158,8 +158,8 @@ a { color: inherit; }
   position: absolute;
   bottom: -1px;
   right: -1px;
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
   background: var(--color-amla);
   border: 2px solid var(--color-bone);
@@ -279,7 +279,7 @@ a { color: inherit; }
 .hero__quote-body {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 15px;
+  font-size: 16.5px;
   color: rgba(30, 58, 52, 0.62);
   line-height: 1.7;
   max-width: 380px;
@@ -302,28 +302,16 @@ a { color: inherit; }
 
 .trust__item {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13.2px;
   color: rgba(245, 240, 230, 0.55);
   letter-spacing: 0.06em;
 }
 
 .trust__dot {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   color: rgba(245, 240, 230, 0.20);
   margin: 0 20px;
-}
-
-/* ---------- Welcome banner (signed-in homepage only, not in design source) ---------- */
-
-.welcome-banner {
-  background: var(--color-bone);
-  text-align: center;
-  padding: 18px var(--gutter) 0;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--color-teal);
 }
 
 /* ---------- Products ---------- */
@@ -341,7 +329,7 @@ a { color: inherit; }
 
 .products__label {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 15.4px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(30, 58, 52, 0.45);
@@ -360,7 +348,7 @@ a { color: inherit; }
 
 .products__tab {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13.2px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(30, 58, 52, 0.50);
@@ -396,7 +384,11 @@ a { color: inherit; }
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  height: 333px;
+  /* 333px base + 40px (four .card__body gaps widened 6px -> 16px, one
+     extra line of breathing room between title/desc/attrs/price) — kept
+     fixed (not auto) so every card in the grid stays the same height
+     regardless of description length. */
+  height: 373px;
   cursor: pointer;
   transition: transform 0.2s ease;
 }
@@ -405,7 +397,7 @@ a { color: inherit; }
 
 .card--out-of-stock {
   position: relative;
-  height: 333px;
+  height: 373px;
 }
 
 .card--out-of-stock .card {
@@ -425,7 +417,7 @@ a { color: inherit; }
 
 .card--out-of-stock__badge {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--color-bone);
@@ -451,7 +443,7 @@ a { color: inherit; }
 
 .card__image-title {
   font-family: var(--font-editorial);
-  font-size: 18px;
+  font-size: 19.8px;
   color: var(--color-bone);
   text-align: center;
   padding: 0 16px;
@@ -463,7 +455,7 @@ a { color: inherit; }
   top: 10px;
   left: 10px;
   font-family: var(--font-display);
-  font-size: 9px;
+  font-size: 9.9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-bone);
@@ -479,12 +471,12 @@ a { color: inherit; }
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 16px;
 }
 
 .card__category {
   font-family: var(--font-display);
-  font-size: 9px;
+  font-size: 9.9px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -492,7 +484,7 @@ a { color: inherit; }
 
 .card__name {
   font-family: var(--font-editorial);
-  font-size: 18px;
+  font-size: 19.8px;
   color: var(--color-ink);
   line-height: 1.2;
   margin-top: 2px;
@@ -513,7 +505,7 @@ a { color: inherit; }
 
 .card__desc {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13.2px;
   color: rgba(30, 58, 52, 0.65);
   line-height: 1.5;
 }
@@ -527,7 +519,7 @@ a { color: inherit; }
 
 .card__attr {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(30, 58, 52, 0.80);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-pill);
@@ -544,20 +536,20 @@ a { color: inherit; }
 
 .card__price {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15.4px;
   color: var(--color-ink);
 }
 
 .card__size {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15.4px;
   color: var(--color-amla);
   font-weight: 300;
 }
 
 .card__add {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: var(--color-ink);
@@ -597,7 +589,7 @@ a { color: inherit; }
 
 .card__qty-btn {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15.4px;
   background: none;
   border: none;
   padding: 6px 12px;
@@ -607,7 +599,7 @@ a { color: inherit; }
 
 .card__qty-count {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14.3px;
   color: var(--color-ink);
   padding: 0 4px;
   min-width: 1ch;
@@ -825,7 +817,7 @@ a { color: inherit; }
   background: var(--color-bone);
   padding: 20px var(--gutter) 0;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   color: rgba(30, 58, 52, 0.50);
   letter-spacing: 0.04em;
 }
@@ -885,7 +877,7 @@ a { color: inherit; }
 
 .product-hero__image-category {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(245, 240, 230, 0.55);
@@ -894,7 +886,7 @@ a { color: inherit; }
 
 .product-hero__image-name {
   font-family: var(--font-editorial);
-  font-size: 38px;
+  font-size: 41.8px;
   color: var(--color-bone);
   line-height: 1;
 }
@@ -911,7 +903,7 @@ a { color: inherit; }
 
 .product-info__category-pill {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: rgba(74, 155, 142, 0.18);
@@ -923,7 +915,7 @@ a { color: inherit; }
 .product-info__title {
   font-family: var(--font-editorial);
   font-weight: 400;
-  font-size: 48px;
+  font-size: 52.8px;
   color: var(--color-ink);
   margin: 0 0 8px;
   line-height: 1.1;
@@ -932,7 +924,7 @@ a { color: inherit; }
 .product-info__desc {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 16px;
+  font-size: 17.6px;
   color: rgba(30, 58, 52, 0.65);
   margin: 0 0 24px;
   line-height: 1.6;
@@ -953,7 +945,7 @@ a { color: inherit; }
 
 .product-info__size-label {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(30, 58, 52, 0.50);
@@ -968,7 +960,7 @@ a { color: inherit; }
 
 .product-info__size-btn {
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14.3px;
   padding: 8px 18px;
   border-radius: var(--radius-button);
   cursor: pointer;
@@ -992,13 +984,13 @@ a { color: inherit; }
 
 .product-info__price {
   font-family: var(--font-mono);
-  font-size: 32px;
+  font-size: 35.2px;
   color: var(--color-ink);
 }
 
 .product-info__unit {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13.2px;
   color: rgba(30, 58, 52, 0.50);
 }
 
@@ -1010,12 +1002,12 @@ a { color: inherit; }
 
 /* Larger stepper variant for the product-detail page (source uses 16px
    buttons / 14px count here vs. 14px / 13px on the compact card/cart one). */
-.card__qty--lg .card__qty-btn { font-size: 16px; padding: 8px 14px; }
-.card__qty--lg .card__qty-count { font-size: 14px; }
+.card__qty--lg .card__qty-btn { font-size: 17.6px; padding: 8px 14px; }
+.card__qty--lg .card__qty-count { font-size: 15.4px; }
 
 .card__add--block {
   flex: 1;
-  font-size: 11px;
+  font-size: 12.1px;
   padding: 12px 24px;
 }
 
@@ -1027,7 +1019,7 @@ a { color: inherit; }
 
 .product-info__usage-label {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-sindoor);
@@ -1037,7 +1029,7 @@ a { color: inherit; }
 .product-info__usage-text {
   font-family: var(--font-display);
   font-style: italic;
-  font-size: 13px;
+  font-size: 14.3px;
   color: rgba(30, 58, 52, 0.70);
   margin: 0;
   line-height: 1.55;
@@ -1050,7 +1042,7 @@ a { color: inherit; }
 
 .product-panel__label {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -1101,7 +1093,7 @@ a { color: inherit; }
 
 .product-panel__veg-label {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.06em;
   color: rgba(30, 58, 52, 0.70);
 }
@@ -1112,7 +1104,7 @@ a { color: inherit; }
 
 .product-panel__field-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(30, 58, 52, 0.55);
   letter-spacing: 0.06em;
   margin-bottom: 6px;
@@ -1120,7 +1112,7 @@ a { color: inherit; }
 
 .product-panel__field-value {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 15.4px;
   color: var(--color-ink);
   line-height: 1.6;
 }
@@ -1133,7 +1125,7 @@ a { color: inherit; }
 
 .product-panel__meta-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(30, 58, 52, 0.55);
   letter-spacing: 0.06em;
   margin-bottom: 4px;
@@ -1141,7 +1133,7 @@ a { color: inherit; }
 
 .product-panel__meta-value {
   font-family: var(--font-mono);
-  font-size: 14px;
+  font-size: 15.4px;
   color: var(--color-ink);
   font-weight: 500;
 }
@@ -1157,7 +1149,7 @@ a { color: inherit; }
 
 .product-panel__nutrition-title {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.06em;
   color: var(--color-ink);
   font-weight: 500;
@@ -1165,7 +1157,7 @@ a { color: inherit; }
 
 .product-panel__nutrition-basis {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   color: rgba(30, 58, 52, 0.55);
 }
 
@@ -1175,7 +1167,7 @@ a { color: inherit; }
   padding: 7px 0;
   border-bottom: 1px solid var(--border-color);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14.3px;
   color: var(--color-ink);
 }
 
@@ -1201,14 +1193,14 @@ a { color: inherit; }
 .cart-header__title {
   font-family: var(--font-editorial);
   font-weight: 400;
-  font-size: 44px;
+  font-size: 48.4px;
   color: var(--color-ink);
   margin: 0;
 }
 
 .cart-header__meta {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13.2px;
   color: rgba(30, 58, 52, 0.55);
 }
 
@@ -1259,7 +1251,7 @@ a { color: inherit; }
 
 .cart-item__badge {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -1268,14 +1260,14 @@ a { color: inherit; }
 
 .cart-item__name {
   font-family: var(--font-editorial);
-  font-size: 22px;
+  font-size: 24.2px;
   color: var(--color-ink);
   margin-bottom: 4px;
 }
 
 .cart-item__size {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   color: rgba(30, 58, 52, 0.55);
   margin-bottom: 10px;
 }
@@ -1288,7 +1280,7 @@ a { color: inherit; }
 
 .cart-item__remove {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   color: var(--color-sindoor);
   text-decoration: none;
   letter-spacing: 0.04em;
@@ -1300,7 +1292,7 @@ a { color: inherit; }
 
 .cart-item__price {
   font-family: var(--font-mono);
-  font-size: 18px;
+  font-size: 19.8px;
   color: var(--color-ink);
   text-align: right;
 }
@@ -1313,7 +1305,7 @@ a { color: inherit; }
 
 .cart-continue__link {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -1331,7 +1323,7 @@ a { color: inherit; }
 
 .cart-summary__label {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: rgba(30, 58, 52, 0.55);
@@ -1343,7 +1335,7 @@ a { color: inherit; }
   flex-direction: column;
   gap: 10px;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 14.3px;
   color: rgba(30, 58, 52, 0.75);
 }
 
@@ -1372,7 +1364,7 @@ a { color: inherit; }
 
 .cart-summary__total-label {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13.2px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-ink);
@@ -1380,7 +1372,7 @@ a { color: inherit; }
 
 .cart-summary__total-value {
   font-family: var(--font-mono);
-  font-size: 22px;
+  font-size: 24.2px;
   color: var(--color-ink);
 }
 
@@ -1393,7 +1385,7 @@ a { color: inherit; }
 .cart-summary__promo-input {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13.2px;
   color: var(--color-ink);
   background: var(--color-bone);
   border: 1px solid var(--border-color);
@@ -1404,7 +1396,7 @@ a { color: inherit; }
 
 .cart-summary__promo-btn {
   font-family: var(--font-display);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   background: transparent;
@@ -1424,7 +1416,7 @@ a { color: inherit; }
 
 .cart-summary__promo-note {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
   color: rgba(30, 58, 52, 0.55);
   margin: -8px 0 16px;
 }
@@ -1432,7 +1424,7 @@ a { color: inherit; }
 .cart-summary__checkout {
   width: 100%;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: var(--color-ink);
@@ -1446,7 +1438,7 @@ a { color: inherit; }
 .cart-summary__shipping-note {
   margin-top: 16px;
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 13.2px;
   color: #A86E0C;
   text-align: center;
   line-height: 1.6;
@@ -1465,14 +1457,14 @@ a { color: inherit; }
 .cart-empty__title {
   font-family: var(--font-editorial);
   font-weight: 400;
-  font-size: 28px;
+  font-size: 30.8px;
   color: var(--color-ink);
   margin: 0 0 10px;
 }
 
 .cart-empty__text {
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 15.4px;
   color: rgba(30, 58, 52, 0.65);
   margin: 0 0 24px;
 }
@@ -1480,7 +1472,7 @@ a { color: inherit; }
 .cart-empty__link {
   display: inline-block;
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: var(--color-ink);
@@ -2142,7 +2134,7 @@ a { color: inherit; }
 .checkout-header__title {
   font-family: var(--font-editorial);
   font-weight: 400;
-  font-size: 30px;
+  font-size: 33px;
   color: var(--color-ink);
   margin: 0 0 18px;
   line-height: 1.1;
@@ -2155,7 +2147,7 @@ a { color: inherit; }
   align-items: center;
   gap: 8px;
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 12.1px;
 }
 
 .checkout-step__dot {
@@ -2165,7 +2157,7 @@ a { color: inherit; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: 11px;
   flex: none;
 }
 
@@ -2197,7 +2189,7 @@ a { color: inherit; }
 
 .checkout-section-label {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13.2px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -2208,17 +2200,17 @@ a { color: inherit; }
 
 .checkout-field-label {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(30, 58, 52, 0.5);
+  color: rgba(30, 58, 52, 0.65);
   margin-bottom: 7px;
   display: block;
 }
 
 .checkout-input {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 16.5px;
   color: var(--color-ink);
   background: #fff;
   border: 1px solid var(--border-color);
@@ -2233,8 +2225,8 @@ a { color: inherit; }
 
 .checkout-field-note {
   font-family: var(--font-display);
-  font-size: 12px;
-  color: rgba(30, 58, 52, 0.5);
+  font-size: 13.2px;
+  color: rgba(30, 58, 52, 0.65);
   margin-top: 7px;
 }
 
@@ -2247,7 +2239,7 @@ a { color: inherit; }
 
 .checkout-address-toggle {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 12.1px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-teal);
@@ -2301,13 +2293,13 @@ a { color: inherit; }
 
 .checkout-address-card__name {
   font-family: var(--font-display);
-  font-size: 15px;
+  font-size: 16.5px;
   color: var(--color-ink);
 }
 
 .checkout-address-card__label {
   font-family: var(--font-mono);
-  font-size: 9px;
+  font-size: 9.9px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   background: var(--border-color);
@@ -2318,16 +2310,16 @@ a { color: inherit; }
 
 .checkout-address-card__lines {
   font-family: var(--font-display);
-  font-weight: 300;
-  font-size: 14px;
-  color: rgba(30, 58, 52, 0.7);
+  font-weight: 400;
+  font-size: 15.4px;
+  color: rgba(30, 58, 52, 0.8);
   line-height: 1.6;
 }
 
 .checkout-address-card__phone {
   font-family: var(--font-mono);
-  font-size: 12px;
-  color: rgba(30, 58, 52, 0.55);
+  font-size: 13.2px;
+  color: rgba(30, 58, 52, 0.7);
   margin-top: 6px;
 }
 
@@ -2335,6 +2327,113 @@ a { color: inherit; }
 .checkout-address-form__row { display: flex; gap: 14px; margin-bottom: 16px; }
 .checkout-address-form__row > div { flex: 1; }
 .checkout-address-form__row--pincode > div:last-child { width: 150px; flex: none; }
+
+/* Address autocomplete (design source 4b) */
+
+.checkout-autocomplete { position: relative; margin-bottom: 16px; }
+
+.checkout-autocomplete__input-wrap { position: relative; }
+
+.checkout-autocomplete__input-wrap .checkout-input { padding-right: 40px; }
+
+.checkout-input--disabled {
+  background: var(--color-bone);
+  color: rgba(30, 58, 52, 0.75);
+  cursor: not-allowed;
+}
+
+.checkout-autocomplete__clear {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 58, 52, 0.1);
+  color: var(--color-ink);
+  font-size: 16.5px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.checkout-autocomplete__clear:hover { background: rgba(30, 58, 52, 0.18); }
+
+.checkout-autocomplete__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(30, 58, 52, 0.14);
+  z-index: 10;
+  overflow: hidden;
+}
+
+.checkout-autocomplete__item {
+  display: flex;
+  gap: 11px;
+  align-items: flex-start;
+  padding: 11px 14px;
+  border-bottom: 1px solid #F0EBDF;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  cursor: pointer;
+}
+
+.checkout-autocomplete__item:hover { background: var(--color-bone); }
+
+.checkout-autocomplete__item-icon { margin-top: 2px; flex: none; }
+
+.checkout-autocomplete__item-main {
+  font-family: var(--font-display);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.checkout-autocomplete__item-secondary {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 13.8px;
+  color: rgba(30, 58, 52, 0.72);
+  line-height: 1.4;
+}
+
+.checkout-autocomplete__attribution {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #FBFAF6;
+}
+
+.checkout-autocomplete__attribution-label {
+  font-family: var(--font-display);
+  font-size: 11px;
+  color: rgba(30, 58, 52, 0.6);
+}
+
+/* Google's own brand colors — not a Poshan token, intentionally literal. */
+.checkout-autocomplete__google-logo span:nth-child(1) { color: #4285F4; }
+.checkout-autocomplete__google-logo span:nth-child(2) { color: #EA4335; }
+.checkout-autocomplete__google-logo span:nth-child(3) { color: #FBBC05; }
+.checkout-autocomplete__google-logo span:nth-child(4) { color: #4285F4; }
+.checkout-autocomplete__google-logo span:nth-child(5) { color: #34A853; }
+.checkout-autocomplete__google-logo span:nth-child(6) { color: #EA4335; }
 
 .checkout-payment { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
 
@@ -2347,7 +2446,7 @@ a { color: inherit; }
   padding: 14px 16px;
   cursor: pointer;
   font-family: var(--font-display);
-  font-size: 14px;
+  font-size: 15.4px;
   color: var(--color-ink);
   background: #fff;
 }
@@ -2372,7 +2471,7 @@ a { color: inherit; }
 .checkout-pay-btn {
   width: 100%;
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 13.2px;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   background: var(--color-ink);
@@ -2398,14 +2497,14 @@ a { color: inherit; }
   gap: 7px;
   margin-top: 14px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.04em;
   color: rgba(30, 58, 52, 0.5);
 }
 
 .checkout-error {
   font-family: var(--font-display);
-  font-size: 13px;
+  font-size: 14.3px;
   color: var(--color-sindoor);
   margin-top: 12px;
   text-align: center;
@@ -2426,19 +2525,14 @@ a { color: inherit; }
 .cart-item--compact .cart-item__thumb { width: 52px; height: 52px; border-radius: 6px; padding: 0; }
 .cart-item--compact-lg .cart-item__thumb { width: 58px; height: 58px; border-radius: 6px; padding: 0; }
 
-.cart-item--compact .cart-item__name,
-.cart-item--compact-lg .cart-item__name {
-  font-size: 15px;
-  margin-bottom: 2px;
-}
-
-.cart-item--compact-lg .cart-item__name { font-size: 16px; }
+.cart-item--compact .cart-item__name { font-size: 16.5px; margin-bottom: 2px; }
+.cart-item--compact-lg .cart-item__name { font-size: 17.6px; margin-bottom: 2px; }
 
 .cart-item--compact .cart-item__size,
 .cart-item--compact-lg .cart-item__size { margin-bottom: 0; }
 
-.cart-item--compact .cart-item__price,
-.cart-item--compact-lg .cart-item__price { font-size: 14px; }
+.cart-item--compact .cart-item__price { font-size: 15.4px; }
+.cart-item--compact-lg .cart-item__price { font-size: 15.4px; }
 
 .confirm-hero {
   background: linear-gradient(135deg, #1E3A34 0%, #2a5249 45%, #4A9B8E 100%);
