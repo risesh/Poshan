@@ -30,3 +30,13 @@ union all
 select id, '250 g', 'LFC-250G', 210, 40, true from inserted where slug = 'lacto-fermented-carrots'
 union all
 select id, '500 g', 'DML-500G', 320, 0, false from inserted where slug = 'dryfruit-millet-laddoo';
+
+-- Demo promo codes so the cart/checkout promo box has something real to
+-- validate against. No promo_code_products rows for either — that means
+-- "applies to every product" (see 0001_init.sql's comment on that table).
+delete from promo_codes;
+
+insert into promo_codes (code, discount_type, discount_value, min_order_rupees, active)
+values
+  ('WELCOME10', 'percent', 10, 0, true),
+  ('FLAT40', 'flat', 40, 300, true);

@@ -1,8 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import type { Product } from "@/lib/products";
+
+// Stops the click from bubbling up to the card's own onClick (which
+// navigates to the product page) — these buttons need their click to stay
+// local to the cart action, not also trigger a navigation underneath it.
+function stopCardNavigation(e: React.MouseEvent) {
+  e.stopPropagation();
+}
 
 function CardBody({ product }: { product: Product }) {
   const { cart, addItem, incrementItem, decrementItem } = useCart();
@@ -15,7 +23,7 @@ function CardBody({ product }: { product: Product }) {
 
   return (
     <>
-      <Link href={`/products/${product.slug}`} className="card__image-link">
+      <Link href={`/products/${product.slug}`} className="card__image-link" onClick={stopCardNavigation}>
         <div className={`card__image${imageClass}`} style={imageStyle}>
           <span className={`card__pill card__pill--${product.badgeStyle ?? "light"}`}>
             {product.badge}
@@ -28,7 +36,7 @@ function CardBody({ product }: { product: Product }) {
       <div className="card__body">
         <div className="card__category">{product.category}</div>
         <h3 className="card__name">
-          <Link href={`/products/${product.slug}`} className="card__name-link">
+          <Link href={`/products/${product.slug}`} className="card__name-link" onClick={stopCardNavigation}>
             {product.name}
           </Link>
         </h3>
@@ -45,7 +53,7 @@ function CardBody({ product }: { product: Product }) {
           <span className="card__size">{product.size}</span>
           {product.inStock ? (
             qty > 0 ? (
-              <div className="card__qty">
+              <div className="card__qty" onClick={stopCardNavigation}>
                 <button
                   className="card__qty-btn"
                   aria-label="Decrease quantity"
@@ -63,12 +71,18 @@ function CardBody({ product }: { product: Product }) {
                 </button>
               </div>
             ) : (
-              <button className="card__add" onClick={() => addItem(product.id)}>
+              <button
+                className="card__add"
+                onClick={(e) => {
+                  stopCardNavigation(e);
+                  addItem(product.id);
+                }}
+              >
                 Add
               </button>
             )
           ) : (
-            <button className="card__add" disabled aria-disabled="true">
+            <button className="card__add" disabled aria-disabled="true" onClick={stopCardNavigation}>
               Add
             </button>
           )}
@@ -86,11 +100,16 @@ function CardBody({ product }: { product: Product }) {
 // element around .card in both cases would break the grid sizing.
 export default function ProductCard({ product }: { product: Product }) {
   const categories = product.tabCategories.join(" ");
+  const router = useRouter();
+  // Whole card navigates on click (except the cart controls, which stop
+  // propagation above) — the image/title keep their own real <Link> too,
+  // for right-click/middle-click/keyboard access.
+  const goToProduct = () => router.push(`/products/${product.slug}`);
 
   if (!product.inStock) {
     return (
       <article className="card--out-of-stock" data-categories={categories}>
-        <div className="card">
+        <div className="card" onClick={goToProduct}>
           <CardBody product={product} />
         </div>
         <div className="card--out-of-stock__overlay">
@@ -101,7 +120,11 @@ export default function ProductCard({ product }: { product: Product }) {
   }
 
   return (
-    <article className="card" data-categories={categories} data-product-id={product.id}>
+    <article
+      className="card"
+      data-categories={categories}
+      data-product-id={product.id}
+      onClick={goToProduct}>
       <CardBody product={product} />
     </article>
   );

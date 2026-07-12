@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import Razorpay from "razorpay";
 import { createClient } from "@/lib/supabase/server";
 import { computeOrderTotals } from "@/lib/order-math";
+import { lookupPromoCode } from "@/lib/promo";
 
 // Only creates a Razorpay order (a payment *attempt*) — never our own
 // `orders` row. That happens in /api/razorpay/verify, only once payment
@@ -15,11 +16,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not signed in" }, { status: 401 });
   }
 
-  const { cart } = (await request.json()) as { cart: Record<string, number> };
+  const { cart, promoCode } = (await request.json()) as {
+    cart: Record<string, number>;
+    promoCode?: string | null;
+  };
 
   let totals;
   try {
-    totals = computeOrderTotals(cart);
+    // Looked up here, not trusted from the client, so the Razorpay amount
+    // below (what's actually charged) reflects a real, currently-active
+    // promo — /api/razorpay/verify re-derives the same thing independently
+    // when the order row is written, so the two always agree.
+    const promo = await lookupPromoCode(supabase, promoCode);
+    totals = computeOrderTotals(cart, promo);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Invalid cart" },

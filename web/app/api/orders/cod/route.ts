@@ -12,15 +12,24 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { addressId, cart } = body as { addressId: string; cart: Record<string, number> };
+  const { addressId, cart, promoCode } = body as {
+    addressId: string;
+    cart: Record<string, number>;
+    promoCode?: string | null;
+  };
   if (!addressId || !cart) {
     return NextResponse.json({ error: "Missing addressId or cart" }, { status: 400 });
   }
 
   try {
-    const { orderId, orderNumber } = await createOrder(supabase, user.id, addressId, cart, {
-      method: "cod",
-    });
+    const { orderId, orderNumber } = await createOrder(
+      supabase,
+      user.id,
+      addressId,
+      cart,
+      { method: "cod" },
+      promoCode ?? null
+    );
     return NextResponse.json({ orderId, orderNumber });
   } catch (err) {
     return NextResponse.json(

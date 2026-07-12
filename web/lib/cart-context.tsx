@@ -17,6 +17,7 @@ import {
 import { products } from "./products";
 
 const CART_KEY = "poshan:cart";
+const PROMO_KEY = "poshan:promo";
 const VALID_IDS = new Set(products.flatMap((p) => p.variants.map((v) => v.id)));
 
 type Cart = Record<string, number>;
@@ -35,6 +36,12 @@ type CartContextValue = {
   decrementItem: (id: string) => void;
   removeItem: (id: string) => void;
   clearCart: () => void;
+  // Just the code string — never a computed discount amount. Applied on
+  // the cart page, read back on the checkout page so the two stay in sync;
+  // both sides always re-look-up and re-compute the actual discount from
+  // this code rather than trusting a stored number (lib/promo.ts).
+  promoCode: string | null;
+  setPromoCode: (code: string | null) => void;
 };
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -63,18 +70,27 @@ export function CartProvider({ children }: { children: ReactNode }) {
   // same "flash to real state" behavior the static site already had.
   const [cart, setCartState] = useState<Cart>({});
   const [hydrated, setHydrated] = useState(false);
+  const [promoCode, setPromoCodeState] = useState<string | null>(null);
 
   useEffect(() => {
     // Intentional: localStorage isn't available during SSR, so hydrating
     // real cart state has to happen post-mount, in an effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setCartState(readCart());
+    setPromoCodeState(window.localStorage.getItem(PROMO_KEY));
     setHydrated(true);
     const onStorage = (e: StorageEvent) => {
       if (e.key === CART_KEY) setCartState(readCart());
+      if (e.key === PROMO_KEY) setPromoCodeState(window.localStorage.getItem(PROMO_KEY));
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  const setPromoCode = useCallback((code: string | null) => {
+    if (code) window.localStorage.setItem(PROMO_KEY, code);
+    else window.localStorage.removeItem(PROMO_KEY);
+    setPromoCodeState(code);
   }, []);
 
   const persist = useCallback((next: Cart) => {
@@ -107,13 +123,29 @@ export function CartProvider({ children }: { children: ReactNode }) {
     [persist]
   );
 
-  const clearCart = useCallback(() => persist({}), [persist]);
+  const clearCart = useCallback(() => {
+    persist({});
+    // A completed order should start the next cart fresh rather than
+    // silently carrying over the previous order's promo code.
+    setPromoCode(null);
+  }, [persist, setPromoCode]);
 
   const total = Object.values(cart).reduce((sum, qty) => sum + qty, 0);
 
   return (
     <CartContext.Provider
-      value={{ cart, total, hydrated, addItem, incrementItem, decrementItem, removeItem, clearCart }}
+      value={{
+        cart,
+        total,
+        hydrated,
+        addItem,
+        incrementItem,
+        decrementItem,
+        removeItem,
+        clearCart,
+        promoCode,
+        setPromoCode,
+      }}
     >
       {children}
     </CartContext.Provider>

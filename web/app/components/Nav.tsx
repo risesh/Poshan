@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { initialsOf } from "@/lib/user-display-name";
+import { isAdminEmail } from "@/lib/admin";
 
 export default function Nav() {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,6 +18,10 @@ export default function Nav() {
   // grid except the homepage itself, which has that grid inline already.
   const showProductsLink = pathname !== "/";
   const onProductPage = pathname.startsWith("/products/");
+
+  // /admin has its own topbar (app/admin/layout.tsx) — showing both would
+  // be redundant.
+  if (pathname.startsWith("/admin")) return null;
 
   return (
     <nav className="nav">
@@ -59,6 +64,11 @@ export default function Nav() {
               >
                 Past orders
               </Link>
+              {isAdminEmail(user.email) && (
+                <Link href="/admin" className="nav__link">
+                  Admin
+                </Link>
+              )}
               <button type="button" className="nav__signin" onClick={() => signOut()}>
                 Sign out
               </button>

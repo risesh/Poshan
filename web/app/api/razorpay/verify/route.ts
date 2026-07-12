@@ -19,12 +19,14 @@ export async function POST(request: Request) {
     razorpay_signature,
     addressId,
     cart,
+    promoCode,
   } = body as {
     razorpay_order_id: string;
     razorpay_payment_id: string;
     razorpay_signature: string;
     addressId: string;
     cart: Record<string, number>;
+    promoCode?: string | null;
   };
 
   if (!process.env.RAZORPAY_KEY_SECRET) {
@@ -66,10 +68,14 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { orderId, orderNumber } = await createOrder(supabase, user.id, addressId, cart, {
-      method,
-      paymentId: razorpay_payment_id,
-    });
+    const { orderId, orderNumber } = await createOrder(
+      supabase,
+      user.id,
+      addressId,
+      cart,
+      { method, paymentId: razorpay_payment_id },
+      promoCode ?? null
+    );
     return NextResponse.json({ orderId, orderNumber });
   } catch (err) {
     return NextResponse.json(

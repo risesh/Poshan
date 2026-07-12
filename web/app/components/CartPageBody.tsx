@@ -2,21 +2,45 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
+import { createClient } from "@/lib/supabase/client";
 import { getVariantById } from "@/lib/products";
+import { computePromoDiscount, type PromoInfo } from "@/lib/order-math";
+import { lookupPromoCode } from "@/lib/promo";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 export default function CartPageBody() {
-  const { cart, total, incrementItem, decrementItem, removeItem } = useCart();
+  const { cart, total, incrementItem, decrementItem, removeItem, promoCode, setPromoCode } = useCart();
   const { user } = useAuth();
   const router = useRouter();
-  // Deliberately not persisted — resets on reload, matches the old
-  // main.js behavior ("no logic, just a promo code applied").
-  const [promoApplied, setPromoApplied] = useState(false);
+  const supabase = useMemo(() => createClient(), []);
   const [promoInput, setPromoInput] = useState("");
+  const [promoChecking, setPromoChecking] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+  // The full promo row for cart context's promoCode — re-fetched whenever
+  // that code changes (including on hydration from localStorage on load),
+  // so the discount always reflects the *current* promo definition rather
+  // than a stale snapshot from whenever it was first applied.
+  const [appliedPromo, setAppliedPromo] = useState<PromoInfo | null>(null);
+
+  useEffect(() => {
+    if (!promoCode) return;
+    let cancelled = false;
+    lookupPromoCode(supabase, promoCode).then((promo) => {
+      if (!cancelled) setAppliedPromo(promo);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [promoCode, supabase]);
+
+  // Guards against showing a stale fetched promo after the code's been
+  // cleared (removePromo doesn't wait for a re-render before the discount
+  // needs to read as gone).
+  const effectiveAppliedPromo = promoCode ? appliedPromo : null;
 
   const entries = Object.entries(cart);
   const itemCount = entries.length;
@@ -53,17 +77,39 @@ export default function CartPageBody() {
     return hit ? sum + hit.variant.priceRupees * qty : sum;
   }, 0);
   const shipping = subtotal >= 500 ? 0 : 49;
-  const discount = promoApplied ? 40 : 0;
+  const discount = computePromoDiscount(subtotal, effectiveAppliedPromo);
   const grandTotal = subtotal + shipping - discount;
 
-  const applyPromo = () => {
-    if (promoApplied || !promoInput.trim()) return;
-    setPromoApplied(true);
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (promoCode || !code || promoChecking) return;
+    setPromoChecking(true);
+    setPromoError(null);
+    // RLS on promo_codes only allows selecting rows where active = true, so
+    // an inactive code comes back as "no row" — indistinguishable from a
+    // code that was never registered or one that's expired, which is fine:
+    // all three should read as "not valid" here.
+    const promo = await lookupPromoCode(supabase, code);
+    setPromoChecking(false);
+
+    if (!promo) {
+      setPromoError("That promo code isn't valid or has expired.");
+      return;
+    }
+    if (subtotal < promo.minOrderRupees) {
+      setPromoError(`This code needs a minimum order of ${formatRupees(promo.minOrderRupees)}.`);
+      return;
+    }
+
+    setAppliedPromo(promo);
+    setPromoCode(promo.code);
   };
 
   const removePromo = () => {
-    setPromoApplied(false);
+    setPromoCode(null);
+    setAppliedPromo(null);
     setPromoInput("");
+    setPromoError(null);
   };
 
   const handleCheckout = () => {
@@ -163,9 +209,9 @@ export default function CartPageBody() {
                 <span>Shipping</span>
                 <span>{shipping === 0 ? "Free" : formatRupees(shipping)}</span>
               </div>
-              {promoApplied && (
+              {discount > 0 && (
                 <div className="cart-summary__row cart-summary__row--discount">
-                  <span>Promo</span>
+                  <span>Promo ({effectiveAppliedPromo?.code})</span>
                   <span>−{formatRupees(discount)}</span>
                 </div>
               )}
@@ -179,18 +225,25 @@ export default function CartPageBody() {
                 type="text"
                 placeholder="Promo code"
                 className="cart-summary__promo-input"
-                value={promoInput}
-                onChange={(e) => setPromoInput(e.target.value)}
-                disabled={promoApplied}
+                value={promoCode ?? promoInput}
+                onChange={(e) => {
+                  setPromoInput(e.target.value);
+                  if (promoError) setPromoError(null);
+                }}
+                disabled={!!promoCode || promoChecking}
               />
               <button
                 type="button"
-                className={`cart-summary__promo-btn${promoApplied ? " cart-summary__promo-btn--remove" : ""}`}
-                onClick={promoApplied ? removePromo : applyPromo}
+                className={`cart-summary__promo-btn${promoCode ? " cart-summary__promo-btn--remove" : ""}`}
+                onClick={promoCode ? removePromo : applyPromo}
+                disabled={promoChecking}
               >
-                {promoApplied ? "Remove" : "Apply"}
+                {promoCode ? "Remove" : promoChecking ? "Checking…" : "Apply"}
               </button>
             </div>
+            {promoError && (
+              <div className="cart-summary__promo-note cart-summary__promo-note--error">{promoError}</div>
+            )}
             <button
               type="button"
               className="cart-summary__checkout"

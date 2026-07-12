@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeOrderTotals, generateOrderNumber, estimatedDeliveryDate } from "./order-math";
+import { lookupPromoCode } from "./promo";
 
 type PaymentInfo =
   | { method: "cod" }
@@ -9,14 +10,23 @@ type PaymentInfo =
 // only ever gets created here, once payment has actually succeeded (or
 // wasn't required, for COD). See supabase/migrations/0001_init.sql's note
 // on why payment_status has no 'failed' value.
+//
+// promoCode is looked up here, independently, rather than trusting a
+// discount amount the client might submit — same principle as re-deriving
+// prices from product data in computeOrderTotals. For the Razorpay path,
+// this must land on the exact same discount /api/razorpay/create-order
+// already used to size the payment (same code, same cart, same
+// deterministic math), so the stored order matches what was actually charged.
 export async function createOrder(
   supabase: SupabaseClient,
   userId: string,
   addressId: string,
   cart: Record<string, number>,
-  payment: PaymentInfo
+  payment: PaymentInfo,
+  promoCode: string | null = null
 ) {
-  const totals = computeOrderTotals(cart);
+  const promo = await lookupPromoCode(supabase, promoCode);
+  const totals = computeOrderTotals(cart, promo);
 
   let orderId: string | null = null;
   let orderNumber = "";
@@ -34,7 +44,7 @@ export async function createOrder(
         payment_id: payment.method === "cod" ? null : payment.paymentId,
         subtotal_rupees: totals.subtotalRupees,
         shipping_rupees: totals.shippingRupees,
-        discount_rupees: 0,
+        discount_rupees: totals.discountRupees,
         total_rupees: totals.totalRupees,
         estimated_delivery: estimatedDeliveryDate(),
       })

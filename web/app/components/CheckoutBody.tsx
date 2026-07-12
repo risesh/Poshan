@@ -5,10 +5,21 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
-import { computeOrderTotals } from "@/lib/order-math";
+import { computeOrderTotals, type PromoInfo } from "@/lib/order-math";
+import { lookupPromoCode } from "@/lib/promo";
 import { getVariantById } from "@/lib/products";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
+
+// Strips everything but digits, and drops a leading "91" country code if
+// present (defaultPhone may arrive as a bare 10-digit number or a full
+// "+91 98765 43210" string depending on how it was originally saved) — the
+// phone field only ever holds the local 10-digit number, since "+91" is a
+// fixed, non-editable prefix in the UI.
+function localPhoneDigits(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.length > 10 && digits.startsWith("91") ? digits.slice(2) : digits;
+}
 
 type AutocompleteSuggestion = { placeId: string; mainText: string; secondaryText: string };
 
@@ -52,7 +63,7 @@ export default function CheckoutBody({
   defaultPhone: string;
   defaultName: string;
 }) {
-  const { cart, clearCart, hydrated } = useCart();
+  const { cart, clearCart, hydrated, promoCode, setPromoCode } = useCart();
   const { user } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -62,7 +73,7 @@ export default function CheckoutBody({
   );
   const [showNewAddressForm, setShowNewAddressForm] = useState(addresses.length === 0);
   const [recipientName, setRecipientName] = useState(defaultName);
-  const [recipientPhone, setRecipientPhone] = useState(defaultPhone);
+  const [recipientPhone, setRecipientPhone] = useState(() => localPhoneDigits(defaultPhone));
   const [flatNo, setFlatNo] = useState("");
   const [streetName, setStreetName] = useState("");
   const [area, setArea] = useState("");
@@ -70,6 +81,23 @@ export default function CheckoutBody({
   const [city, setCity] = useState("");
   const [stateVal, setStateVal] = useState("");
   const [postalCode, setPostalCode] = useState("");
+
+  // Browser autofill (esp. for "name"/"tel"/address-shaped fields, which
+  // none of these have autoComplete set to disable) can set an <input>'s
+  // DOM value directly without firing the input event React's onChange
+  // relies on — the field then looks filled on screen while its React
+  // state var stays at "". These refs let placeOrder() read the *actual*
+  // live DOM value at submit time instead of trusting state that may have
+  // silently gone stale that way.
+  const recipientNameRef = useRef<HTMLInputElement>(null);
+  const recipientPhoneRef = useRef<HTMLInputElement>(null);
+  const flatNoRef = useRef<HTMLInputElement>(null);
+  const streetNameRef = useRef<HTMLInputElement>(null);
+  const areaRef = useRef<HTMLInputElement>(null);
+  const line2Ref = useRef<HTMLInputElement>(null);
+  const cityRef = useRef<HTMLInputElement>(null);
+  const stateRef = useRef<HTMLInputElement>(null);
+  const postalCodeRef = useRef<HTMLInputElement>(null);
   const [lat, setLat] = useState<number | null>(null);
   const [lng, setLng] = useState<number | null>(null);
   const [formattedAddress, setFormattedAddress] = useState<string | null>(null);
@@ -201,38 +229,153 @@ export default function CheckoutBody({
     }
   }, [cart, hydrated, router]);
 
+  // Mirrors CartPageBody's own re-fetch: cart context only stores the code
+  // string, so both pages independently look up the current promo row
+  // rather than trusting a stale discount amount carried over from the
+  // cart page.
+  const [appliedPromo, setAppliedPromo] = useState<PromoInfo | null>(null);
+
+  useEffect(() => {
+    if (!promoCode) return;
+    let cancelled = false;
+    lookupPromoCode(supabase, promoCode).then((promo) => {
+      if (!cancelled) setAppliedPromo(promo);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [promoCode, supabase]);
+
+  // Guards against showing a stale fetched promo right after it's removed.
+  const effectiveAppliedPromo = promoCode ? appliedPromo : null;
+
   const totals = useMemo(() => {
     try {
-      return computeOrderTotals(cart);
+      return computeOrderTotals(cart, effectiveAppliedPromo);
     } catch {
       return null;
     }
-  }, [cart]);
+  }, [cart, effectiveAppliedPromo]);
+
+  // Mirrors CartPageBody's own promo box — checkout previously only ever
+  // displayed+removed whatever promo the cart page had applied, with no way
+  // to apply a new one once that was cleared from here.
+  const [promoInput, setPromoInput] = useState("");
+  const [promoChecking, setPromoChecking] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
+
+  const applyPromo = async () => {
+    const code = promoInput.trim();
+    if (promoCode || !code || promoChecking) return;
+    setPromoChecking(true);
+    setPromoError(null);
+    const promo = await lookupPromoCode(supabase, code);
+    setPromoChecking(false);
+
+    if (!promo) {
+      setPromoError("That promo code isn't valid or has expired.");
+      return;
+    }
+    if (totals && totals.subtotalRupees < promo.minOrderRupees) {
+      setPromoError(`This code needs a minimum order of ${formatRupees(promo.minOrderRupees)}.`);
+      return;
+    }
+
+    setAppliedPromo(promo);
+    setPromoCode(promo.code);
+  };
+
+  const removePromo = () => {
+    setPromoCode(null);
+    setAppliedPromo(null);
+    setPromoInput("");
+    setPromoError(null);
+  };
+
+  // A ref, not state — state updates are async/batched, so a second click
+  // fired before React re-renders the disabled Pay button would still read
+  // stale (not-yet-busy) state and slip through. This is what let one
+  // order insert the same new address 2-3 times when clicked repeatedly.
+  const submittingRef = useRef(false);
+  // Tracks an address inserted *this attempt* so it can be deleted again if
+  // the order ultimately fails — an address should only stick around once
+  // it's actually been used to place an order, not just typed into the form.
+  const newAddressIdRef = useRef<string | null>(null);
+
+  const rollbackNewAddress = async () => {
+    if (!newAddressIdRef.current) return;
+    await supabase.from("addresses").delete().eq("id", newAddressIdRef.current);
+    newAddressIdRef.current = null;
+  };
 
   const placeOrder = async () => {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+
+    const fail = async (msg: string) => {
+      await rollbackNewAddress();
+      setBusy(false);
+      submittingRef.current = false;
+      setError(msg);
+    };
+
     setError(null);
 
     let addressId = selectedAddressId;
 
+    // Read the live DOM value for each field rather than trusting state
+    // directly — browser autofill on these fields (name/tel/city/state/
+    // postal code are all autofill-recognizable) can set an input's value
+    // without firing the event React's onChange listens for, leaving state
+    // stale while the field still looks filled on screen. Computed up here
+    // (not just inside the new-address branch) so the Razorpay prefill
+    // below also gets the corrected values.
+    const effRecipientName = recipientNameRef.current?.value ?? recipientName;
+    const effRecipientPhoneDigits = localPhoneDigits(recipientPhoneRef.current?.value ?? recipientPhone);
+    const effRecipientPhone = effRecipientPhoneDigits ? `+91 ${effRecipientPhoneDigits}` : "";
+
     if (showNewAddressForm) {
-      if (!recipientName.trim() || !recipientPhone.trim() || !streetName.trim() || !city.trim() || !stateVal.trim() || !postalCode.trim()) {
-        setError("Please fill in all required address fields.");
+      const effFlatNo = flatNoRef.current?.value ?? flatNo;
+      const effStreetName = streetNameRef.current?.value ?? streetName;
+      const effArea = areaRef.current?.value ?? area;
+      const effLine2 = line2Ref.current?.value ?? line2;
+      const effCity = cityRef.current?.value ?? city;
+      const effState = stateRef.current?.value ?? stateVal;
+      const effPostalCode = postalCodeRef.current?.value ?? postalCode;
+
+      // Name the missing fields explicitly rather than a generic message —
+      // a field can visually look filled when it's actually only showing
+      // placeholder text (e.g. Phone's placeholder is a realistic-looking
+      // example number), which a generic "fill in all fields" error can't
+      // help someone spot.
+      const missing: string[] = [];
+      if (!effRecipientName.trim()) missing.push("Full name");
+      if (!effRecipientPhoneDigits) missing.push("Phone number");
+      if (!effFlatNo.trim()) missing.push("Flat / Plot / House no.");
+      if (!effStreetName.trim()) missing.push("Street name");
+      if (!effArea.trim()) missing.push("Area / Locality");
+      if (!effCity.trim()) missing.push("City");
+      if (!effState.trim()) missing.push("State");
+      if (!effPostalCode.trim()) missing.push("Pincode");
+      if (missing.length > 0) {
+        submittingRef.current = false;
+        setError(`Please fill in: ${missing.join(", ")}.`);
         return;
       }
       setBusy(true);
-      const line1 = [flatNo.trim(), streetName.trim(), area.trim()].filter(Boolean).join(", ");
+      const line1 = [effFlatNo.trim(), effStreetName.trim(), effArea.trim()].filter(Boolean).join(", ");
       const { data, error: insertError } = await supabase
         .from("addresses")
         .insert({
           user_id: user!.id,
           label: "Home",
-          recipient_name: recipientName.trim(),
-          recipient_phone: recipientPhone.trim(),
+          recipient_name: effRecipientName.trim(),
+          recipient_phone: effRecipientPhone.trim(),
           line1,
-          line2: line2.trim() || null,
-          city: city.trim(),
-          state: stateVal.trim(),
-          postal_code: postalCode.trim(),
+          line2: effLine2.trim() || null,
+          city: effCity.trim(),
+          state: effState.trim(),
+          postal_code: effPostalCode.trim(),
           is_default: addresses.length === 0,
           lat,
           lng,
@@ -247,16 +390,20 @@ export default function CheckoutBody({
         })
         .select("id")
         .single();
-      setBusy(false);
 
       if (insertError || !data) {
+        setBusy(false);
+        submittingRef.current = false;
         setError("Could not save that address. Please check the fields and try again.");
         return;
       }
       addressId = data.id;
+      newAddressIdRef.current = data.id;
     }
 
     if (!addressId) {
+      setBusy(false);
+      submittingRef.current = false;
       setError("Please select or add a delivery address.");
       return;
     }
@@ -267,15 +414,16 @@ export default function CheckoutBody({
       const res = await fetch("/api/orders/cod", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ addressId, cart }),
+        body: JSON.stringify({ addressId, cart, promoCode }),
       });
       const json = await res.json();
-      setBusy(false);
       if (!res.ok) {
-        setError(json.error ?? "Could not place order.");
+        await fail(json.error ?? "Could not place order.");
         return;
       }
       orderPlacedRef.current = true;
+      newAddressIdRef.current = null;
+      setBusy(false);
       clearCart();
       router.push(`/orders/${json.orderId}`);
       return;
@@ -285,19 +433,17 @@ export default function CheckoutBody({
     const createRes = await fetch("/api/razorpay/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart }),
+      body: JSON.stringify({ cart, promoCode }),
     });
     const createJson = await createRes.json();
     if (!createRes.ok) {
-      setBusy(false);
-      setError(createJson.error ?? "Could not start payment.");
+      await fail(createJson.error ?? "Could not start payment.");
       return;
     }
 
     const loaded = await loadRazorpayScript();
     if (!loaded) {
-      setBusy(false);
-      setError("Could not load the payment gateway. Check your connection and try again.");
+      await fail("Could not load the payment gateway. Check your connection and try again.");
       return;
     }
 
@@ -309,7 +455,7 @@ export default function CheckoutBody({
       currency: "INR",
       name: "Poषण",
       description: "Order payment",
-      prefill: { name: recipientName || defaultName, contact: recipientPhone || defaultPhone },
+      prefill: { name: effRecipientName || defaultName, contact: effRecipientPhone || defaultPhone },
       theme: { color: "#1E3A34" },
       handler: async (response: {
         razorpay_order_id: string;
@@ -320,20 +466,28 @@ export default function CheckoutBody({
         const verifyRes = await fetch("/api/razorpay/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...response, addressId, cart }),
+          body: JSON.stringify({ ...response, addressId, cart, promoCode }),
         });
         const verifyJson = await verifyRes.json();
-        setBusy(false);
         if (!verifyRes.ok) {
-          setError(verifyJson.error ?? "Payment could not be verified.");
+          await fail(verifyJson.error ?? "Payment could not be verified.");
           return;
         }
         orderPlacedRef.current = true;
+        newAddressIdRef.current = null;
+        setBusy(false);
         clearCart();
         router.push(`/orders/${verifyJson.orderId}`);
       },
       modal: {
-        ondismiss: () => setBusy(false),
+        // Payment window closed/cancelled without completing — nothing was
+        // ever charged or ordered, so an address created for this attempt
+        // shouldn't stick around either.
+        ondismiss: () => {
+          void rollbackNewAddress();
+          setBusy(false);
+          submittingRef.current = false;
+        },
       },
     });
     razorpay.open();
@@ -407,20 +561,28 @@ export default function CheckoutBody({
               <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
                 <span className="checkout-field-label">Full name</span>
                 <input
+                  ref={recipientNameRef}
                   className="checkout-input"
                   value={recipientName}
                   onChange={(e) => setRecipientName(e.target.value)}
                   placeholder="Recipient's name"
+                  autoComplete="name"
                 />
               </div>
               <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
                 <span className="checkout-field-label">Phone number</span>
-                <input
-                  className="checkout-input"
-                  value={recipientPhone}
-                  onChange={(e) => setRecipientPhone(e.target.value)}
-                  placeholder="+91 98765 43210"
-                />
+                <div className="checkout-phone-input-wrap">
+                  <span className="checkout-phone-input-wrap__prefix">+91</span>
+                  <input
+                    ref={recipientPhoneRef}
+                    className="checkout-input"
+                    value={recipientPhone}
+                    onChange={(e) => setRecipientPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                    placeholder="xxxxx xxxxx"
+                    autoComplete="tel-national"
+                    inputMode="numeric"
+                  />
+                </div>
               </div>
               <div className="checkout-autocomplete">
                 <span className="checkout-field-label">Search address</span>
@@ -496,6 +658,7 @@ export default function CheckoutBody({
                 <div>
                   <span className="checkout-field-label">Flat / Plot / House no.</span>
                   <input
+                    ref={flatNoRef}
                     className="checkout-input"
                     value={flatNo}
                     onChange={(e) => setFlatNo(e.target.value)}
@@ -507,6 +670,7 @@ export default function CheckoutBody({
                 <div>
                   <span className="checkout-field-label">Street name</span>
                   <input
+                    ref={streetNameRef}
                     className="checkout-input"
                     value={streetName}
                     onChange={(e) => setStreetName(e.target.value)}
@@ -518,6 +682,7 @@ export default function CheckoutBody({
                 <div>
                   <span className="checkout-field-label">Area / Locality</span>
                   <input
+                    ref={areaRef}
                     className="checkout-input"
                     value={area}
                     onChange={(e) => setArea(e.target.value)}
@@ -528,6 +693,7 @@ export default function CheckoutBody({
               <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
                 <span className="checkout-field-label">Landmark</span>
                 <input
+                  ref={line2Ref}
                   className="checkout-input"
                   value={line2}
                   onChange={(e) => setLine2(e.target.value)}
@@ -538,19 +704,23 @@ export default function CheckoutBody({
                 <div>
                   <span className="checkout-field-label">City</span>
                   <input
+                    ref={cityRef}
                     className="checkout-input"
                     value={city}
                     onChange={(e) => setCity(e.target.value)}
                     placeholder="City"
+                    autoComplete="address-level2"
                   />
                 </div>
                 <div>
                   <span className="checkout-field-label">Pincode</span>
                   <input
+                    ref={postalCodeRef}
                     className="checkout-input"
                     value={postalCode}
                     onChange={(e) => setPostalCode(e.target.value)}
                     placeholder="000000"
+                    autoComplete="postal-code"
                   />
                 </div>
               </div>
@@ -558,10 +728,12 @@ export default function CheckoutBody({
                 <div>
                   <span className="checkout-field-label">State</span>
                   <input
+                    ref={stateRef}
                     className="checkout-input"
                     value={stateVal}
                     onChange={(e) => setStateVal(e.target.value)}
                     placeholder="State"
+                    autoComplete="address-level1"
                   />
                 </div>
               </div>
@@ -605,11 +777,42 @@ export default function CheckoutBody({
                   <span>Shipping</span>
                   <span>{totals.shippingRupees === 0 ? "Free" : formatRupees(totals.shippingRupees)}</span>
                 </div>
+                {totals.discountRupees > 0 && (
+                  <div className="cart-summary__row cart-summary__row--discount">
+                    <span>Promo ({totals.promoCode})</span>
+                    <span>−{formatRupees(totals.discountRupees)}</span>
+                  </div>
+                )}
               </div>
               <div className="cart-summary__total">
                 <span className="cart-summary__total-label">Total</span>
                 <span className="cart-summary__total-value">{formatRupees(totals.totalRupees)}</span>
               </div>
+
+              <div className="cart-summary__promo">
+                <input
+                  type="text"
+                  placeholder="Promo code"
+                  className="cart-summary__promo-input"
+                  value={promoCode ?? promoInput}
+                  onChange={(e) => {
+                    setPromoInput(e.target.value);
+                    if (promoError) setPromoError(null);
+                  }}
+                  disabled={!!promoCode || promoChecking}
+                />
+                <button
+                  type="button"
+                  className={`cart-summary__promo-btn${promoCode ? " cart-summary__promo-btn--remove" : ""}`}
+                  onClick={promoCode ? removePromo : applyPromo}
+                  disabled={promoChecking}
+                >
+                  {promoCode ? "Remove" : promoChecking ? "Checking…" : "Apply"}
+                </button>
+              </div>
+              {promoError && (
+                <div className="cart-summary__promo-note cart-summary__promo-note--error">{promoError}</div>
+              )}
 
               <div className="checkout-payment">
                 <button
