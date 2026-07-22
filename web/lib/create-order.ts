@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeOrderTotals, generateOrderNumber, estimatedDeliveryDate } from "./order-math";
+import { computeOrderTotals, generateOrderNumber, estimatedDeliveryDate, MIN_ORDER_RUPEES } from "./order-math";
 import { lookupPromoCode } from "./promo";
+import { fetchVariantsByIds } from "./products";
+import { getAddressCoordinates, distanceFromFulfillmentCenterKm } from "./shipping";
 
 type PaymentInfo =
   | { method: "cod" }
@@ -26,7 +28,26 @@ export async function createOrder(
   promoCode: string | null = null
 ) {
   const promo = await lookupPromoCode(supabase, promoCode);
-  const totals = computeOrderTotals(cart, promo);
+
+  // Never trust a shipping fee from the client — look up the delivery
+  // address's coordinates ourselves and compute distance server-side. A
+  // missing lat/lng (address saved without ever using the location search)
+  // fails loudly here rather than silently pricing shipping as free.
+  const coords = await getAddressCoordinates(supabase, addressId);
+  if (!coords) {
+    throw new Error(
+      "This delivery address doesn't have a location. Please add or select an address using the address search."
+    );
+  }
+  const distanceKm = distanceFromFulfillmentCenterKm(coords.lat, coords.lng);
+  const variantLookup = await fetchVariantsByIds(supabase, Object.keys(cart));
+  const totals = computeOrderTotals(cart, promo, distanceKm, variantLookup);
+
+  // Storewide minimum, independent of any promo — never trust the client's
+  // disabled-button state alone (see MIN_ORDER_RUPEES's own comment).
+  if (totals.subtotalRupees < MIN_ORDER_RUPEES) {
+    throw new Error(`Minimum order value is ₹${MIN_ORDER_RUPEES}.`);
+  }
 
   let orderId: string | null = null;
   let orderNumber = "";
@@ -64,7 +85,11 @@ export async function createOrder(
   const { error: itemsError } = await supabase.from("order_items").insert(
     totals.items.map((item) => ({
       order_id: orderId,
-      product_variant_id: null,
+      // Real FK now that cart ids are Supabase product_variants.id UUIDs
+      // (previously always null — see web/CLAUDE.md's note on why).
+      // Snapshot columns below remain the historical source of truth even
+      // if this variant is later edited or removed.
+      product_variant_id: item.variantId,
       product_name_snapshot: item.productName,
       variant_label_snapshot: item.variantLabel,
       unit_price_rupees_snapshot: item.unitPriceRupees,

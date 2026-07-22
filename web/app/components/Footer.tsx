@@ -11,10 +11,11 @@ const FALLBACK: Quote = {
   author: "Leigh Hunt",
 };
 
-// Client-side, same as the original site: server-rendered markup shows the
-// static fallback quote (so it's never blank / never a hydration mismatch),
-// then this picks a fresh random quote on mount — re-rolls on every page
-// load, matching assets/js/main.js's data-random-quote behavior.
+// Server-rendered markup shows the static fallback quote (so it's never
+// blank / never a hydration mismatch), then this picks a fresh random quote
+// on mount — re-rolls on every page load. `lib/quotes.json` is generated —
+// edit `../../../Quotes.txt` and run `python3 build-quotes.py` (repo root),
+// don't hand-edit this file directly.
 export default function Footer({ compact = false }: { compact?: boolean }) {
   const [quote, setQuote] = useState<Quote>(FALLBACK);
 
@@ -36,18 +37,23 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
         <Link href="/our-story" className="philosophy__link">
           Our story
         </Link>
-        <a href="#" className="philosophy__link">
+        <a
+          href="https://wa.me/917982414408?text=Hi%2C%20I%20have%20a%20question%20for%20you%20-%20"
+          className="philosophy__link"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Contact us
         </a>
-        <a href="#" className="philosophy__link">
+        <Link href="/shipping" className="philosophy__link">
           Shipping &amp; Returns
-        </a>
-        <a href="#" className="philosophy__link">
+        </Link>
+        <Link href="/terms" className="philosophy__link">
           Terms &amp; Conditions
-        </a>
-        <a href="#" className="philosophy__link">
+        </Link>
+        <Link href="/privacy" className="philosophy__link">
           Privacy
-        </a>
+        </Link>
       </nav>
       <div className="philosophy__bottom">
         <div className="philosophy__copyright">

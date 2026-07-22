@@ -14,7 +14,14 @@ function stopCardNavigation(e: React.MouseEvent) {
 
 function CardBody({ product }: { product: Product }) {
   const { cart, addItem, incrementItem, decrementItem } = useCart();
-  const qty = cart[product.id] || 0;
+  // Cart lines are keyed by variant id, not product id — for products.id
+  // === product_variants.id was true by coincidence in the old hardcoded
+  // data (single-variant products), but that no longer holds now that
+  // both are real, independent Supabase UUIDs. primaryVariantId (not
+  // variants[0].id) so the card's Add button always acts on the same
+  // in-stock variant its price/size are already showing.
+  const defaultVariantId = product.primaryVariantId;
+  const qty = cart[defaultVariantId] || 0;
 
   const imageStyle = product.image
     ? { backgroundImage: `url('${product.image}')` }
@@ -57,7 +64,7 @@ function CardBody({ product }: { product: Product }) {
                 <button
                   className="card__qty-btn"
                   aria-label="Decrease quantity"
-                  onClick={() => decrementItem(product.id)}
+                  onClick={() => decrementItem(defaultVariantId)}
                 >
                   −
                 </button>
@@ -65,7 +72,7 @@ function CardBody({ product }: { product: Product }) {
                 <button
                   className="card__qty-btn"
                   aria-label="Increase quantity"
-                  onClick={() => incrementItem(product.id)}
+                  onClick={() => incrementItem(defaultVariantId)}
                 >
                   +
                 </button>
@@ -75,7 +82,7 @@ function CardBody({ product }: { product: Product }) {
                 className="card__add"
                 onClick={(e) => {
                   stopCardNavigation(e);
-                  addItem(product.id);
+                  addItem(defaultVariantId);
                 }}
               >
                 Add

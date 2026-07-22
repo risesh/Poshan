@@ -1,27 +1,39 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { getProductBySlug, products } from "@/lib/products";
+import { getProductBySlug, getAllProducts } from "@/lib/products";
+import { createClient } from "@/lib/supabase/server";
+import { createStaticClient } from "@/lib/supabase/static";
 import ProductHero from "@/app/components/ProductHero";
 import ProductPanel from "@/app/components/ProductPanel";
 import Footer from "@/app/components/Footer";
 
-export function generateStaticParams() {
+// Admin-edited products go live within this window; a brand-new
+// admin-created slug not covered by generateStaticParams below renders
+// on-demand on first request (Next's default dynamicParams = true), then
+// is cached the same as any other slug.
+export const revalidate = 60;
+
+export async function generateStaticParams() {
+  const supabase = createStaticClient();
+  const products = await getAllProducts(supabase);
   return products.map((p) => ({ slug: p.slug }));
 }
 
 export async function generateMetadata(props: PageProps<"/products/[slug]">) {
   const { slug } = await props.params;
-  const product = getProductBySlug(slug);
+  const supabase = await createClient();
+  const product = await getProductBySlug(supabase, slug);
   if (!product) return {};
   return {
     title: `${product.name} — Poषण`,
-    description: `${product.name} — ${product.descriptionLines[0]}`,
+    description: `${product.name} — ${product.description}`,
   };
 }
 
 export default async function ProductPage(props: PageProps<"/products/[slug]">) {
   const { slug } = await props.params;
-  const product = getProductBySlug(slug);
+  const supabase = await createClient();
+  const product = await getProductBySlug(supabase, slug);
   if (!product) notFound();
 
   return (

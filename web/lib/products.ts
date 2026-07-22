@@ -1,15 +1,18 @@
-// Interim local product catalog — mirrors assets/js/main.js's PRODUCT_CATALOG
-// exactly (same ids/prices/copy), extended with the detail-page fields
-// authored in kefir.html/punjabi-mango-pickle.html/lacto-fermented-carrots.html/
-// dryfruit-millet-laddoo.html. Gets replaced by a Supabase fetch against the
-// `products`/`product_variants` tables in backend Phase 2; every call site
-// here (ProductCard, product-detail pages) is written against this same
-// shape so that swap is a data-source change, not a rewrite.
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+// Supabase-backed product catalog (supabase/migrations/0001_init.sql +
+// 0005_product_catalog_fields.sql define the `products`/`product_variants`
+// tables this reads). Every call site is written against the same
+// Product/Variant shape the old hardcoded array used, so the swap away
+// from a static array only changed this file plus the handful of callers
+// that now need to `await` a fetch (see order-math.ts's VariantLookup and
+// cart-context.tsx) — not every component that reads product data.
 export type Variant = {
-  id: string; // matches the old data-product-id / becomes product_variants.sku eventually
-  size: string; // e.g. '500ml' | '1L'
+  id: string; // product_variants.id (uuid) — the real cart-line/order-line id
+  size: string; // e.g. '500 ml' | '1 L'
   priceRupees: number;
   unitLabel: string; // e.g. '/ 500 ml jar'
+  isInStock: boolean; // is_instock && stock_quantity > 0 — per-variant admin toggle
 };
 
 export type Product = {
@@ -25,13 +28,19 @@ export type Product = {
   size: string;
   image?: string;
   gradient?: "amla" | "turmeric";
-  inStock: boolean;
-  tabCategories: string[]; // matches the old data-categories values (tab filtering)
+  inStock: boolean; // products.is_instock && at least one variant is in stock
+  // The variant `price`/`size` above describe, and the one ProductCard's
+  // Add button should act on — prefers an in-stock variant (see
+  // mapRowToProduct) so a card never shows/sells the one disabled size
+  // out of several just because it happens to sort first.
+  primaryVariantId: string;
+  tabCategories: string[];
 
   // Detail-page-only fields
-  descriptionLines: string[]; // rendered as separate <br>-joined lines, matches product-info__desc
-  detailAttrs: string[]; // product-info__attrs differs from the card's attrs
-  usageLines: string[];
+  description: string;
+  descriptionBullets: string[];
+  detailAttrs: string[];
+  usageBullets: string[];
   vegetarian: boolean;
   ingredients: string;
   netQuantity: string;
@@ -39,219 +48,237 @@ export type Product = {
   shelfLife: string;
   nutritionBasis: string;
   nutritionRows: [string, string][];
-  variants: Variant[]; // single-entry for every product except Kefir (500ml / 1L)
-  placeholderContent?: boolean; // true = author-placeholder copy, not sourced from the design (see CLAUDE.md)
+  variants: Variant[];
+  placeholderContent?: boolean;
 
-  // Cart line-item thumbnail (cart.html has no product photos, just a
-  // gradient swatch + name — matches assets/js/main.js's PRODUCT_CATALOG)
-  cartBadge: string; // e.g. 'Probiotic · Best seller'
+  // Cart line-item thumbnail (cart has no product photos, just a gradient
+  // swatch + name)
+  cartBadge: string;
   thumbGradient: string;
-  thumbNameLines: string[]; // 1 or 2 lines, rendered with a <br> between
-  thumbNameSize: string; // e.g. '18px' | '14px'
+  thumbNameLines: string[];
+  thumbNameSize: string;
 };
 
-export const products: Product[] = [
+// What every cart-pricing call site needs per cart line: enough of the
+// parent product to render a thumbnail/name, plus the resolved variant.
+// Exported so lib/order-math.ts can type its VariantLookup parameter
+// against this without importing any runtime code from this file (only
+// fetchVariantsByIds below actually touches Supabase).
+export type VariantLookup = Map<
+  string,
   {
-    id: "kefir-500ml",
-    slug: "kefir",
-    name: "Kefir",
-    category: "Probiotic",
-    badge: "Best Seller",
-    badgeStyle: "dark",
-    desc: "One of the most potent, natural, fermented probiotic food",
-    attrs: ["Fermented", "A2 milk", "Small batch"],
-    price: 240,
-    size: "500ml",
-    image: "/kefir.jpg",
-    inStock: true,
-    tabCategories: ["best-sellers", "probiotics"],
-    descriptionLines: [
-      'Kefir is a tart, fermented drink made by soaking "Kefir grains" - a symbiotic culture of yeasts and bacteria in milk',
-      "- 30+ strains of bacteria & yeast v/s approx. 5 in Curd",
-      "- Consume daily for gut health and immunity.",
-    ],
-    detailAttrs: ["A2 milk", "Made fresh for every order", "Rich in protein, calcium"],
-    usageLines: [
-      "- Start slow, take 1-2 spoons per day to let your digestion adjust",
-      "- Helpful after antibiotics or when digestion feels heavy.",
-    ],
-    vegetarian: true,
-    ingredients: "Pasteurised A2 cow milk, live kefir cultures (Lactococcus, Leuconostoc, kefir yeasts).",
-    netQuantity: "500 ml",
-    storage: "Refrigerate below 4°C",
-    shelfLife: "3-5 days from packing, if kept refrigerated",
-    nutritionBasis: "per 100 ml",
-    nutritionRows: [
-      ["Energy", "62 kcal"],
-      ["Protein", "3.3 g"],
-      ["Fat", "3.5 g"],
-      ["Carbohydrate", "4.2 g"],
-      ["Calcium", "115 mg"],
-    ],
-    variants: [
-      { id: "kefir-500ml", size: "500ml", priceRupees: 240, unitLabel: "/ 500 ml jar" },
-      { id: "kefir-1l", size: "1L", priceRupees: 440, unitLabel: "/ 1 L jar" },
-    ],
-    cartBadge: "Probiotic · Best seller",
-    thumbGradient: "linear-gradient(135deg,#1E3A34 0%,#4A9B8E 100%)",
-    thumbNameLines: ["Kefir"],
-    thumbNameSize: "18px",
-  },
-  {
-    id: "punjabi-mango-pickle",
-    slug: "punjabi-mango-pickle",
-    name: "Punjabi Mango Pickle",
-    category: "Probiotic",
-    badge: "Seasonal",
-    badgeStyle: "light",
-    desc: "Traditional lacto-fermented, raw mango pickle from Punjab",
-    attrs: ["Fermented", "Seasonal", "Traditional"],
-    price: 250,
-    size: "250g",
-    gradient: "amla",
-    inStock: true,
-    tabCategories: ["seasonal", "pickles", "probiotics"],
-    placeholderContent: true,
-    descriptionLines: [
-      "A traditional Punjabi-style raw mango pickle, lacto-fermented the way home kitchens have made it for generations.",
-      "- Raw mango, mustard oil, and whole spices, fermented slowly for tang and bite",
-      "- Live cultures develop naturally over 2-3 weeks, no added vinegar",
-      "- A spoonful alongside any meal for a dose of fermented flavor",
-    ],
-    detailAttrs: ["Fermented", "Seasonal", "Traditional"],
-    usageLines: [
-      "- Best enjoyed alongside dal, rice, or parathas.",
-      "- Refrigerate after opening and use a dry spoon to keep it fresh longer.",
-    ],
-    vegetarian: true,
-    ingredients: "Raw mango, mustard oil, red chilli, mustard seeds, fenugreek, turmeric, salt.",
-    netQuantity: "250 g",
-    storage: "Cool, dry place; refrigerate after opening",
-    shelfLife: "6 months unopened; 4-6 weeks refrigerated after opening",
-    nutritionBasis: "per 100 g",
-    nutritionRows: [
-      ["Energy", "180 kcal"],
-      ["Protein", "1.5 g"],
-      ["Fat", "14 g"],
-      ["Carbohydrate", "12 g"],
-      ["Sodium", "850 mg"],
-    ],
-    variants: [
-      { id: "punjabi-mango-pickle", size: "250g", priceRupees: 250, unitLabel: "/ 250 g jar" },
-    ],
-    cartBadge: "Probiotic · Seasonal",
-    thumbGradient: "linear-gradient(135deg,#7A9B76 0%,#E4A335 100%)",
-    thumbNameLines: ["Punjabi Mango", "Pickle"],
-    thumbNameSize: "14px",
-  },
-  {
-    id: "lacto-fermented-carrots",
-    slug: "lacto-fermented-carrots",
-    name: "Lacto Fermented Carrots",
-    category: "Probiotic",
-    badge: "New",
-    badgeStyle: "light",
-    desc: "Crisp winter carrots, brine-fermented with mustard seeds",
-    attrs: ["Live cultures", "Brine-fermented", "Small batch"],
-    price: 210,
-    size: "250g",
-    gradient: "amla",
-    inStock: true,
-    tabCategories: ["probiotics"],
-    placeholderContent: true,
-    descriptionLines: [
-      "Crisp carrots, brine-fermented the traditional way with mustard seeds for a tangy, probiotic-rich bite.",
-      "- Fermented in a simple salt brine, no vinegar or shortcuts",
-      "- Live cultures develop naturally over 1-2 weeks",
-      "- A crunchy, tangy side to any meal, or eaten straight from the jar",
-    ],
-    detailAttrs: ["Live cultures", "Brine-fermented", "Small batch"],
-    usageLines: [
-      "- A few pieces alongside a meal help digestion.",
-      "- Keep refrigerated and use a clean, dry spoon each time.",
-    ],
-    vegetarian: true,
-    ingredients: "Carrots, water, sea salt, mustard seeds.",
-    netQuantity: "250 g",
-    storage: "Refrigerate at all times",
-    shelfLife: "4-6 weeks refrigerated",
-    nutritionBasis: "per 100 g",
-    nutritionRows: [
-      ["Energy", "35 kcal"],
-      ["Protein", "1 g"],
-      ["Fat", "0.3 g"],
-      ["Carbohydrate", "7 g"],
-      ["Sodium", "620 mg"],
-    ],
-    variants: [
-      { id: "lacto-fermented-carrots", size: "250g", priceRupees: 210, unitLabel: "/ 250 g jar" },
-    ],
-    cartBadge: "Probiotic · New",
-    thumbGradient: "linear-gradient(135deg,#7A9B76 0%,#4A9B8E 100%)",
-    thumbNameLines: ["Lacto Fermented", "Carrots"],
-    thumbNameSize: "14px",
-  },
-  {
-    id: "dryfruit-millet-laddoo",
-    slug: "dryfruit-millet-laddoo",
-    name: "Dryfruit Millet Laddoo",
-    category: "Energy",
-    badge: "Instant Energy",
-    badgeStyle: "light",
-    desc: "Slow-toasted millet with dates, almonds, and cardamom",
-    attrs: ["Iron-rich", "No refined sugar", "Small batch"],
-    price: 320,
-    size: "500g",
-    gradient: "turmeric",
-    inStock: false,
-    tabCategories: ["energy"],
-    placeholderContent: true,
-    descriptionLines: [
-      "Slow-toasted millet laddoos, sweetened only with dates and rounded out with almonds and cardamom.",
-      "- No refined sugar — natural sweetness from dates",
-      "- Iron-rich millets, toasted slowly for flavor and digestibility",
-      "- A quick, wholesome bite for sustained energy",
-    ],
-    detailAttrs: ["Iron-rich", "No refined sugar", "Small batch"],
-    usageLines: [
-      "- One or two laddoos make a satisfying mid-day snack.",
-      "- Store in an airtight container away from direct sunlight.",
-    ],
-    vegetarian: true,
-    ingredients: "Finger millet (ragi), dates, almonds, cashews, ghee, cardamom.",
-    netQuantity: "500 g",
-    storage: "Airtight container, room temperature",
-    shelfLife: "3 weeks at room temperature",
-    nutritionBasis: "per 100 g",
-    nutritionRows: [
-      ["Energy", "410 kcal"],
-      ["Protein", "8 g"],
-      ["Fat", "16 g"],
-      ["Carbohydrate", "58 g"],
-      ["Iron", "4.5 mg"],
-    ],
-    variants: [
-      { id: "dryfruit-millet-laddoo", size: "500g", priceRupees: 320, unitLabel: "/ 500 g box" },
-    ],
-    // Unused in practice — out of stock, so never addable to cart — kept
-    // for type completeness / in case it's restocked later.
-    cartBadge: "Energy · Instant Energy",
-    thumbGradient: "linear-gradient(135deg,#C97C3D 0%,#E4A335 100%)",
-    thumbNameLines: ["Dryfruit Millet", "Laddoo"],
-    thumbNameSize: "14px",
-  },
-];
+    product: {
+      id: string;
+      name: string;
+      image?: string;
+      cartBadge: string;
+      thumbGradient: string;
+      thumbNameLines: string[];
+      thumbNameSize: string;
+    };
+    variant: Variant;
+  }
+>;
 
-export function getProductBySlug(slug: string): Product | undefined {
-  return products.find((p) => p.slug === slug);
+type NutritionJson = { basis?: string; rows?: [string, string][] };
+
+type ProductRow = {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  badge: string | null;
+  description: string | null;
+  attributes: string[];
+  is_instock: boolean;
+  short_description: string;
+  gradient: "amla" | "turmeric" | null;
+  badge_style: "dark" | "light" | null;
+  image_url: string | null;
+  tab_categories: string[];
+  description_bullets: string[];
+  detail_attrs: string[];
+  usage_bullets: string[];
+  vegetarian: boolean;
+  ingredients: string;
+  net_quantity: string;
+  storage: string;
+  shelf_life: string;
+  cart_badge: string;
+  thumb_gradient: string;
+  thumb_name_lines: string[];
+  thumb_name_size: string;
+  placeholder_content: boolean;
+  product_variants: VariantRow[];
+};
+
+type VariantRow = {
+  id: string;
+  size_label: string;
+  price_rupees: number;
+  stock_quantity: number;
+  is_instock: boolean;
+  nutrition: NutritionJson | null;
+  unit_label: string;
+  sort_order: number;
+};
+
+const PRODUCT_SELECT = `
+  id, slug, name, category, badge, description, attributes, is_instock,
+  short_description, gradient, badge_style, image_url, tab_categories,
+  description_bullets, detail_attrs, usage_bullets, vegetarian, ingredients,
+  net_quantity, storage, shelf_life, cart_badge, thumb_gradient,
+  thumb_name_lines, thumb_name_size, placeholder_content,
+  product_variants ( id, size_label, price_rupees, stock_quantity, is_instock, nutrition, unit_label, sort_order )
+`;
+
+function mapRowToProduct(row: ProductRow): Product {
+  const sortedVariantRows = [...row.product_variants].sort(
+    (a, b) => a.sort_order - b.sort_order || a.size_label.localeCompare(b.size_label)
+  );
+  const variants: Variant[] = sortedVariantRows.map((v) => ({
+    id: v.id,
+    size: v.size_label,
+    priceRupees: v.price_rupees,
+    unitLabel: v.unit_label,
+    isInStock: v.is_instock && v.stock_quantity > 0,
+  }));
+  // Nutrition is only ever populated on the sort_order-0 variant row (see
+  // 0005_product_catalog_fields.sql's migration note) — stays tied to that
+  // row regardless of stock, independent of the "which variant does the
+  // card represent" choice below, so an out-of-stock primary variant
+  // doesn't blank out the detail page's nutrition panel.
+  const nutrition = sortedVariantRows[0]?.nutrition ?? {};
+
+  // Card display (price/size) and the variant id ProductCard's Add button
+  // acts on prefer an actually-purchasable variant, so a product with one
+  // disabled size still reads as available and sellable from the card —
+  // falls back to the first variant by sort_order only when every variant
+  // is unavailable (the fully-out-of-stock case, where it doesn't matter
+  // which one is shown since Add is disabled regardless).
+  const availableRow =
+    sortedVariantRows.find((v) => v.is_instock && v.stock_quantity > 0) ?? sortedVariantRows[0];
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    category: row.category,
+    badge: row.badge ?? undefined,
+    badgeStyle: row.badge_style ?? undefined,
+    desc: row.short_description,
+    attrs: row.attributes,
+    price: availableRow?.price_rupees ?? 0,
+    size: availableRow?.size_label ?? "",
+    primaryVariantId: availableRow?.id ?? "",
+    image: row.image_url ?? undefined,
+    gradient: row.gradient ?? undefined,
+    inStock: row.is_instock && variants.some((v) => v.isInStock),
+    tabCategories: row.tab_categories,
+    description: row.description ?? "",
+    descriptionBullets: row.description_bullets,
+    detailAttrs: row.detail_attrs,
+    usageBullets: row.usage_bullets,
+    vegetarian: row.vegetarian,
+    ingredients: row.ingredients,
+    netQuantity: row.net_quantity,
+    storage: row.storage,
+    shelfLife: row.shelf_life,
+    nutritionBasis: nutrition.basis ?? "",
+    nutritionRows: nutrition.rows ?? [],
+    variants,
+    placeholderContent: row.placeholder_content || undefined,
+    cartBadge: row.cart_badge,
+    thumbGradient: row.thumb_gradient,
+    thumbNameLines: row.thumb_name_lines,
+    thumbNameSize: row.thumb_name_size,
+  };
 }
 
-export function getVariantById(
-  id: string
-): { product: Product; variant: Variant } | undefined {
-  for (const product of products) {
-    const variant = product.variants.find((v) => v.id === id);
-    if (variant) return { product, variant };
+// Every product, including disabled ones — visibility filtering (e.g.
+// hiding a fully-disabled product from the storefront) is the caller's
+// job, since the admin Controls tab needs to see disabled items too.
+export async function getAllProducts(supabase: SupabaseClient): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .order("created_at");
+  if (error) throw error;
+  return ((data ?? []) as unknown as ProductRow[]).map(mapRowToProduct);
+}
+
+export async function getProductBySlug(
+  supabase: SupabaseClient,
+  slug: string
+): Promise<Product | undefined> {
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return undefined;
+  return mapRowToProduct(data as unknown as ProductRow);
+}
+
+// Resolves a batch of cart-line ids (product_variants.id values) in a
+// single query — every real call site (a cart) needs multiple ids at
+// once, so this replaces the old one-id-at-a-time getVariantById.
+export async function fetchVariantsByIds(
+  supabase: SupabaseClient,
+  ids: string[]
+): Promise<VariantLookup> {
+  const lookup: VariantLookup = new Map();
+  const uniqueIds = [...new Set(ids)];
+  if (uniqueIds.length === 0) return lookup;
+
+  const { data, error } = await supabase
+    .from("product_variants")
+    .select(
+      "id, size_label, price_rupees, unit_label, is_instock, stock_quantity, products ( id, name, image_url, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size )"
+    )
+    .in("id", uniqueIds);
+  if (error) throw error;
+
+  type Row = {
+    id: string;
+    size_label: string;
+    price_rupees: number;
+    unit_label: string;
+    is_instock: boolean;
+    stock_quantity: number;
+    products: {
+      id: string;
+      name: string;
+      image_url: string | null;
+      cart_badge: string;
+      thumb_gradient: string;
+      thumb_name_lines: string[];
+      thumb_name_size: string;
+    } | null;
+  };
+
+  for (const row of (data ?? []) as unknown as Row[]) {
+    if (!row.products) continue;
+    lookup.set(row.id, {
+      product: {
+        id: row.products.id,
+        name: row.products.name,
+        image: row.products.image_url ?? undefined,
+        cartBadge: row.products.cart_badge,
+        thumbGradient: row.products.thumb_gradient,
+        thumbNameLines: row.products.thumb_name_lines,
+        thumbNameSize: row.products.thumb_name_size,
+      },
+      variant: {
+        id: row.id,
+        size: row.size_label,
+        priceRupees: row.price_rupees,
+        unitLabel: row.unit_label,
+        isInStock: row.is_instock && row.stock_quantity > 0,
+      },
+    });
   }
-  return undefined;
+
+  return lookup;
 }

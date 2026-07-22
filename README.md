@@ -8,9 +8,6 @@ exaggerated health claims. This repo is its website.
 
 - **`web/`** — the live application. Next.js (App Router) + Supabase, actively
   developed. Start here.
-- **Root-level HTML/CSS/JS** (`index.html`, `cart.html`, `assets/`, etc.) — the
-  original static-site prototype the app was migrated from. Kept as a
-  design/behavior reference, not actively developed further.
 - **`design/`** — the decoded Claude Design export (`decoded-source.html`) —
   the source of truth for exact pixel/color/copy values used while building.
 - **`Design.md`** — the brand design system (colors, type scale, spacing,

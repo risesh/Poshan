@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import CheckoutBody from "@/app/components/CheckoutBody";
+import Footer from "@/app/components/Footer";
 
 export const metadata = {
   title: "Checkout — Poषण",
@@ -25,11 +26,23 @@ export default async function CheckoutPage() {
     supabase.from("profiles").select("phone, name").eq("id", user.id).single(),
   ]);
 
+  // Postgres `numeric` columns (lat/lng) come back from supabase-js as
+  // strings, not numbers — coerced here, once, at the server/client
+  // boundary, so CheckoutBody's Address type can honestly say `number | null`.
+  const normalizedAddresses = (addresses ?? []).map((a) => ({
+    ...a,
+    lat: a.lat == null ? null : Number(a.lat),
+    lng: a.lng == null ? null : Number(a.lng),
+  }));
+
   return (
-    <CheckoutBody
-      addresses={addresses ?? []}
-      defaultPhone={profile?.phone ?? ""}
-      defaultName={profile?.name ?? ""}
-    />
+    <>
+      <CheckoutBody
+        addresses={normalizedAddresses}
+        defaultPhone={profile?.phone ?? ""}
+        defaultName={profile?.name ?? ""}
+      />
+      <Footer compact />
+    </>
   );
 }

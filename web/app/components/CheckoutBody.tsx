@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
-import { computeOrderTotals, type PromoInfo } from "@/lib/order-math";
+import { computeCartPricing, computeOrderTotals, type PromoInfo } from "@/lib/order-math";
 import { lookupPromoCode } from "@/lib/promo";
-import { getVariantById } from "@/lib/products";
+import { distanceFromFulfillmentCenterKm } from "@/lib/shipping";
+import { fetchVariantsByIds, type VariantLookup } from "@/lib/products";
+import PromoCodeField from "./PromoCodeField";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -35,6 +37,8 @@ type Address = {
   postal_code: string;
   country: string;
   is_default: boolean;
+  lat: number | null;
+  lng: number | null;
 };
 
 declare global {
@@ -63,15 +67,38 @@ export default function CheckoutBody({
   defaultPhone: string;
   defaultName: string;
 }) {
-  const { cart, clearCart, hydrated, promoCode, setPromoCode } = useCart();
+  const { cart, clearCart, hydrated, promoCode } = useCart();
   const { user } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
+
+  // Local, mutable copy of the server-fetched list — edit/delete update
+  // this directly so the UI reflects the change immediately, rather than
+  // waiting on a full page reload; router.refresh() after each mutation
+  // keeps the server-rendered data in sync for the next navigation too.
+  const [addressList, setAddressList] = useState<Address[]>(addresses);
 
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
     addresses.find((a) => a.is_default)?.id ?? addresses[0]?.id ?? null
   );
   const [showNewAddressForm, setShowNewAddressForm] = useState(addresses.length === 0);
+
+  // Editing an existing saved address swaps its card for an inline form
+  // (see editingAddressId below) — distinct from showNewAddressForm's
+  // deferred-until-order-placement create flow, since editing an address
+  // that already exists should save immediately.
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
+  const [editRecipientName, setEditRecipientName] = useState("");
+  const [editRecipientPhone, setEditRecipientPhone] = useState("");
+  const [editLine1, setEditLine1] = useState("");
+  const [editLine2, setEditLine2] = useState("");
+  const [editCity, setEditCity] = useState("");
+  const [editState, setEditState] = useState("");
+  const [editPostalCode, setEditPostalCode] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [deletingAddressId, setDeletingAddressId] = useState<string | null>(null);
+  const [addressActionError, setAddressActionError] = useState<string | null>(null);
   const [recipientName, setRecipientName] = useState(defaultName);
   const [recipientPhone, setRecipientPhone] = useState(() => localPhoneDigits(defaultPhone));
   const [flatNo, setFlatNo] = useState("");
@@ -213,6 +240,73 @@ export default function CheckoutBody({
     // suggestion overwrites all of them anyway.
   };
 
+  const startEditAddress = (addr: Address) => {
+    setShowNewAddressForm(false);
+    setEditError(null);
+    setEditingAddressId(addr.id);
+    setEditRecipientName(addr.recipient_name);
+    setEditRecipientPhone(localPhoneDigits(addr.recipient_phone));
+    setEditLine1(addr.line1);
+    setEditLine2(addr.line2 ?? "");
+    setEditCity(addr.city);
+    setEditState(addr.state);
+    setEditPostalCode(addr.postal_code);
+  };
+
+  const cancelEditAddress = () => {
+    setEditingAddressId(null);
+    setEditError(null);
+  };
+
+  // Saves in place — unlike a brand-new address (only inserted once an
+  // order is actually placed, see placeOrder below), an edit to an
+  // existing address is real the moment it's submitted; there's no
+  // "abandon and roll back" case for correcting a typo in a saved address.
+  const saveEditAddress = async () => {
+    if (!editingAddressId) return;
+    const phoneDigits = editRecipientPhone.replace(/\D/g, "");
+    if (!editRecipientName.trim() || !phoneDigits || !editLine1.trim() || !editCity.trim() || !editState.trim() || !editPostalCode.trim()) {
+      setEditError("Please fill in all fields.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    const update = {
+      recipient_name: editRecipientName.trim(),
+      recipient_phone: `+91 ${phoneDigits}`,
+      line1: editLine1.trim(),
+      line2: editLine2.trim() || null,
+      city: editCity.trim(),
+      state: editState.trim(),
+      postal_code: editPostalCode.trim(),
+    };
+    const { error: updateError } = await supabase.from("addresses").update(update).eq("id", editingAddressId);
+    setEditSaving(false);
+    if (updateError) {
+      setEditError("Could not save changes. Please try again.");
+      return;
+    }
+    setAddressList((current) => current.map((a) => (a.id === editingAddressId ? { ...a, ...update } : a)));
+    setEditingAddressId(null);
+    router.refresh();
+  };
+
+  const deleteAddress = async (addr: Address) => {
+    if (!window.confirm(`Delete the address for ${addr.recipient_name}?`)) return;
+    setDeletingAddressId(addr.id);
+    setAddressActionError(null);
+    const { error: deleteError } = await supabase.from("addresses").delete().eq("id", addr.id);
+    setDeletingAddressId(null);
+    if (deleteError) {
+      setAddressActionError("Could not delete that address. Please try again.");
+      return;
+    }
+    setAddressList((current) => current.filter((a) => a.id !== addr.id));
+    if (selectedAddressId === addr.id) setSelectedAddressId(null);
+    if (editingAddressId === addr.id) setEditingAddressId(null);
+    router.refresh();
+  };
+
   // clearCart() on a successful order also empties `cart`, which would
   // otherwise re-trigger this same guard and redirect to /cart instead of
   // the order confirmation page — set right before navigating away on
@@ -249,48 +343,54 @@ export default function CheckoutBody({
   // Guards against showing a stale fetched promo right after it's removed.
   const effectiveAppliedPromo = promoCode ? appliedPromo : null;
 
-  const totals = useMemo(() => {
+  // Cart pricing now needs a Supabase round trip (variant ids/prices no
+  // longer live in a bundled static array) — resolved once per cart
+  // change, same idiom as the appliedPromo effect above.
+  const [variantLookup, setVariantLookup] = useState<VariantLookup | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVariantsByIds(supabase, Object.keys(cart)).then((lookup) => {
+      if (!cancelled) setVariantLookup(lookup);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, supabase]);
+
+  // Distance-based shipping needs a resolved delivery location — from the
+  // new-address form's own lat/lng state, or from whichever saved address
+  // is currently selected. Pure client-side math (no extra network call,
+  // the coordinates are already local); the server independently re-derives
+  // the same thing from the DB row before anything is actually charged
+  // (see lib/create-order.ts and /api/razorpay/create-order).
+  const selectedSavedAddress = addressList.find((a) => a.id === selectedAddressId);
+  const activeLat = showNewAddressForm ? lat : (selectedSavedAddress?.lat ?? null);
+  const activeLng = showNewAddressForm ? lng : (selectedSavedAddress?.lng ?? null);
+  const distanceKm =
+    activeLat != null && activeLng != null ? distanceFromFulfillmentCenterKm(activeLat, activeLng) : null;
+
+  // Items/subtotal/discount never depend on delivery location — available
+  // immediately, so the order summary can render before a location is
+  // chosen. Shipping/total do depend on it, hence the separate `totals`
+  // below, which stays null until distanceKm resolves.
+  const pricing = useMemo(() => {
+    if (!variantLookup) return null;
     try {
-      return computeOrderTotals(cart, effectiveAppliedPromo);
+      return computeCartPricing(cart, effectiveAppliedPromo, variantLookup);
     } catch {
       return null;
     }
-  }, [cart, effectiveAppliedPromo]);
+  }, [cart, effectiveAppliedPromo, variantLookup]);
 
-  // Mirrors CartPageBody's own promo box — checkout previously only ever
-  // displayed+removed whatever promo the cart page had applied, with no way
-  // to apply a new one once that was cleared from here.
-  const [promoInput, setPromoInput] = useState("");
-  const [promoChecking, setPromoChecking] = useState(false);
-  const [promoError, setPromoError] = useState<string | null>(null);
-
-  const applyPromo = async () => {
-    const code = promoInput.trim();
-    if (promoCode || !code || promoChecking) return;
-    setPromoChecking(true);
-    setPromoError(null);
-    const promo = await lookupPromoCode(supabase, code);
-    setPromoChecking(false);
-
-    if (!promo) {
-      setPromoError("That promo code isn't valid or has expired.");
-      return;
+  const totals = useMemo(() => {
+    if (distanceKm === null || !variantLookup) return null;
+    try {
+      return computeOrderTotals(cart, effectiveAppliedPromo, distanceKm, variantLookup);
+    } catch {
+      return null;
     }
-    if (totals && totals.subtotalRupees < promo.minOrderRupees) {
-      setPromoError(`This code needs a minimum order of ${formatRupees(promo.minOrderRupees)}.`);
-      return;
-    }
-
-    setAppliedPromo(promo);
-    setPromoCode(promo.code);
-  };
-
-  const removePromo = () => {
-    setPromoCode(null);
-    setAppliedPromo(null);
-    setPromoInput("");
-    setPromoError(null);
-  };
+  }, [cart, effectiveAppliedPromo, distanceKm, variantLookup]);
 
   // A ref, not state — state updates are async/batched, so a second click
   // fired before React re-renders the disabled Pay button would still read
@@ -357,6 +457,7 @@ export default function CheckoutBody({
       if (!effCity.trim()) missing.push("City");
       if (!effState.trim()) missing.push("State");
       if (!effPostalCode.trim()) missing.push("Pincode");
+      if (lat == null || lng == null) missing.push("Delivery location (search and select your address)");
       if (missing.length > 0) {
         submittingRef.current = false;
         setError(`Please fill in: ${missing.join(", ")}.`);
@@ -376,7 +477,7 @@ export default function CheckoutBody({
           city: effCity.trim(),
           state: effState.trim(),
           postal_code: effPostalCode.trim(),
-          is_default: addresses.length === 0,
+          is_default: addressList.length === 0,
           lat,
           lng,
           formatted_address: formattedAddress,
@@ -399,6 +500,19 @@ export default function CheckoutBody({
       }
       addressId = data.id;
       newAddressIdRef.current = data.id;
+    }
+
+    // A saved address created before this feature existed (or one saved
+    // without ever using the location search) may not have a location —
+    // there's no UI to backfill it, so the only fix is a new address.
+    if (!showNewAddressForm && addressId) {
+      const addr = addressList.find((a) => a.id === addressId);
+      if (!addr || addr.lat == null || addr.lng == null) {
+        setBusy(false);
+        submittingRef.current = false;
+        setError("This saved address doesn't have a delivery location. Please add a new address using the location search.");
+        return;
+      }
     }
 
     if (!addressId) {
@@ -433,7 +547,7 @@ export default function CheckoutBody({
     const createRes = await fetch("/api/razorpay/create-order", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cart, promoCode }),
+      body: JSON.stringify({ cart, promoCode, addressId }),
     });
     const createJson = await createRes.json();
     if (!createRes.ok) {
@@ -518,43 +632,136 @@ export default function CheckoutBody({
             </div>
           </div>
 
-          <div className="checkout-address-row">
-            <div className="checkout-section-label" style={{ marginBottom: 0 }}>
-              Delivery address
-            </div>
-            {addresses.length > 0 && (
-              <button
-                type="button"
-                className="checkout-address-toggle"
-                onClick={() => setShowNewAddressForm((v) => !v)}
-              >
-                {showNewAddressForm ? "Use a saved address" : "Use a new address"}
-              </button>
-            )}
-          </div>
+          <div className="checkout-section-label">Delivery address</div>
+          {addressActionError && <div className="checkout-error" style={{ marginBottom: 14 }}>{addressActionError}</div>}
+
+          {/* Pinned as the first item in the list rather than a corner
+              button — the previous top-right toggle was easy to miss. */}
+          {addressList.length > 0 && (
+            <button
+              type="button"
+              className={`checkout-address-card checkout-address-card--add${showNewAddressForm ? " is-selected" : ""}`}
+              onClick={() => {
+                setShowNewAddressForm((v) => !v);
+                setEditingAddressId(null);
+              }}
+            >
+              <span className="checkout-address-card__radio checkout-address-card__radio--add">+</span>
+              <div className="checkout-address-card__name">
+                {showNewAddressForm ? "Use a saved address instead" : "Use a new address"}
+              </div>
+            </button>
+          )}
 
           {!showNewAddressForm &&
-            addresses.map((addr) => (
-              <button
-                type="button"
-                key={addr.id}
-                className={`checkout-address-card${selectedAddressId === addr.id ? " is-selected" : ""}`}
-                onClick={() => setSelectedAddressId(addr.id)}
-              >
-                <span className="checkout-address-card__radio"></span>
-                <div>
-                  <div className="checkout-address-card__name-row">
-                    <span className="checkout-address-card__name">{addr.recipient_name}</span>
-                    <span className="checkout-address-card__label">{addr.label}</span>
+            addressList.map((addr) =>
+              editingAddressId === addr.id ? (
+                <div className="checkout-address-form checkout-address-edit-form" key={addr.id}>
+                  <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
+                    <span className="checkout-field-label">Full name</span>
+                    <input
+                      className="checkout-input"
+                      value={editRecipientName}
+                      onChange={(e) => setEditRecipientName(e.target.value)}
+                    />
                   </div>
-                  <div className="checkout-address-card__lines">
-                    {addr.line1}
-                    {addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.state} {addr.postal_code}
+                  <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
+                    <span className="checkout-field-label">Phone number</span>
+                    <div className="checkout-phone-input-wrap">
+                      <span className="checkout-phone-input-wrap__prefix">+91</span>
+                      <input
+                        className="checkout-input"
+                        value={editRecipientPhone}
+                        onChange={(e) => setEditRecipientPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                        inputMode="numeric"
+                      />
+                    </div>
                   </div>
-                  <div className="checkout-address-card__phone">{addr.recipient_phone}</div>
+                  <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
+                    <span className="checkout-field-label">Address line 1</span>
+                    <input className="checkout-input" value={editLine1} onChange={(e) => setEditLine1(e.target.value)} />
+                  </div>
+                  <div className="checkout-field-group" style={{ maxWidth: "none", marginBottom: 16 }}>
+                    <span className="checkout-field-label">Landmark</span>
+                    <input
+                      className="checkout-input"
+                      value={editLine2}
+                      onChange={(e) => setEditLine2(e.target.value)}
+                      placeholder="Landmark / apartment (optional)"
+                    />
+                  </div>
+                  <div className="checkout-address-form__row checkout-address-form__row--pincode">
+                    <div>
+                      <span className="checkout-field-label">City</span>
+                      <input className="checkout-input" value={editCity} onChange={(e) => setEditCity(e.target.value)} />
+                    </div>
+                    <div>
+                      <span className="checkout-field-label">Pincode</span>
+                      <input className="checkout-input" value={editPostalCode} onChange={(e) => setEditPostalCode(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="checkout-address-form__row">
+                    <div>
+                      <span className="checkout-field-label">State</span>
+                      <input className="checkout-input" value={editState} onChange={(e) => setEditState(e.target.value)} />
+                    </div>
+                  </div>
+                  {editError && <div className="checkout-error">{editError}</div>}
+                  <div className="checkout-address-edit-form__actions">
+                    <button
+                      type="button"
+                      className="checkout-address-toggle"
+                      onClick={saveEditAddress}
+                      disabled={editSaving}
+                    >
+                      {editSaving ? "Saving…" : "Save changes"}
+                    </button>
+                    <button type="button" className="checkout-address-toggle checkout-address-toggle--muted" onClick={cancelEditAddress}>
+                      Cancel
+                    </button>
+                  </div>
                 </div>
-              </button>
-            ))}
+              ) : (
+                <div className="checkout-address-card-shell" key={addr.id}>
+                  <button
+                    type="button"
+                    className={`checkout-address-card${selectedAddressId === addr.id ? " is-selected" : ""}`}
+                    onClick={() => setSelectedAddressId(addr.id)}
+                  >
+                    <span className="checkout-address-card__radio"></span>
+                    <div>
+                      <div className="checkout-address-card__name-row">
+                        <span className="checkout-address-card__name">{addr.recipient_name}</span>
+                        <span className="checkout-address-card__label">{addr.label}</span>
+                      </div>
+                      <div className="checkout-address-card__lines">
+                        {addr.line1}
+                        {addr.line2 ? `, ${addr.line2}` : ""}, {addr.city}, {addr.state} {addr.postal_code}
+                      </div>
+                      <div className="checkout-address-card__phone">{addr.recipient_phone}</div>
+                      {(addr.lat == null || addr.lng == null) && (
+                        <div style={{ color: "var(--color-sindoor)", fontFamily: "var(--font-mono)", fontSize: "11.9px", marginTop: 4 }}>
+                          Missing delivery location — add a new address to use this
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                  <div className="checkout-address-card__actions">
+                    <button type="button" className="checkout-address-card__action" onClick={() => startEditAddress(addr)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="checkout-address-card__action checkout-address-card__action--delete"
+                      onClick={() => deleteAddress(addr)}
+                      disabled={deletingAddressId === addr.id}
+                    >
+                      {deletingAddressId === addr.id ? "Deleting…" : "Delete"}
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
 
           {showNewAddressForm && (
             <div className="checkout-address-form">
@@ -744,11 +951,11 @@ export default function CheckoutBody({
         <div className="checkout-body__right">
           <div className="checkout-section-label">Order summary</div>
 
-          {totals && (
+          {pricing && (
             <>
               <div style={{ display: "flex", flexDirection: "column", gap: 14, marginBottom: 20 }}>
-                {totals.items.map((item) => {
-                  const hit = getVariantById(item.variantId);
+                {pricing.items.map((item) => {
+                  const hit = variantLookup?.get(item.variantId);
                   const product = hit?.product;
                   const imageStyle = product?.image
                     ? { backgroundImage: `url('${product.image}')`, backgroundSize: "cover", backgroundPosition: "center" }
@@ -771,48 +978,29 @@ export default function CheckoutBody({
               <div className="cart-summary__rows" style={{ borderTop: "1px solid var(--border-color)", paddingTop: 16 }}>
                 <div className="cart-summary__row">
                   <span>Subtotal</span>
-                  <span>{formatRupees(totals.subtotalRupees)}</span>
+                  <span>{formatRupees(pricing.subtotalRupees)}</span>
                 </div>
                 <div className="cart-summary__row">
                   <span>Shipping</span>
-                  <span>{totals.shippingRupees === 0 ? "Free" : formatRupees(totals.shippingRupees)}</span>
+                  {totals ? (
+                    <span>{totals.shippingRupees === 0 ? "Free" : formatRupees(totals.shippingRupees)}</span>
+                  ) : (
+                    <span style={{ color: "rgba(30,58,52,0.55)" }}>Calculated based on delivery location</span>
+                  )}
                 </div>
-                {totals.discountRupees > 0 && (
+                {pricing.discountRupees > 0 && (
                   <div className="cart-summary__row cart-summary__row--discount">
-                    <span>Promo ({totals.promoCode})</span>
-                    <span>−{formatRupees(totals.discountRupees)}</span>
+                    <span>Promo ({pricing.promoCode})</span>
+                    <span>−{formatRupees(pricing.discountRupees)}</span>
                   </div>
                 )}
               </div>
               <div className="cart-summary__total">
                 <span className="cart-summary__total-label">Total</span>
-                <span className="cart-summary__total-value">{formatRupees(totals.totalRupees)}</span>
+                <span className="cart-summary__total-value">{totals ? formatRupees(totals.totalRupees) : "—"}</span>
               </div>
 
-              <div className="cart-summary__promo">
-                <input
-                  type="text"
-                  placeholder="Promo code"
-                  className="cart-summary__promo-input"
-                  value={promoCode ?? promoInput}
-                  onChange={(e) => {
-                    setPromoInput(e.target.value);
-                    if (promoError) setPromoError(null);
-                  }}
-                  disabled={!!promoCode || promoChecking}
-                />
-                <button
-                  type="button"
-                  className={`cart-summary__promo-btn${promoCode ? " cart-summary__promo-btn--remove" : ""}`}
-                  onClick={promoCode ? removePromo : applyPromo}
-                  disabled={promoChecking}
-                >
-                  {promoCode ? "Remove" : promoChecking ? "Checking…" : "Apply"}
-                </button>
-              </div>
-              {promoError && (
-                <div className="cart-summary__promo-note cart-summary__promo-note--error">{promoError}</div>
-              )}
+              <PromoCodeField subtotalRupees={pricing.subtotalRupees} />
 
               <div className="checkout-payment">
                 <button
@@ -836,13 +1024,19 @@ export default function CheckoutBody({
               <button
                 type="button"
                 className="checkout-pay-btn"
-                disabled={busy}
+                disabled={busy || !totals}
                 onClick={placeOrder}
               >
                 <span>{paymentMethod === "cod" ? "Place order" : "Pay"}</span>
                 <span className="checkout-pay-btn__sep">·</span>
-                <span className="checkout-pay-btn__amount">{formatRupees(totals.totalRupees)}</span>
+                <span className="checkout-pay-btn__amount">{totals ? formatRupees(totals.totalRupees) : "—"}</span>
               </button>
+
+              {!totals && (
+                <div className="checkout-field-note">
+                  Select a delivery address with a location to see your total and complete payment.
+                </div>
+              )}
 
               {paymentMethod === "online" && (
                 <div className="checkout-secure-note">

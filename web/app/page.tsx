@@ -1,8 +1,13 @@
 import Image from "next/image";
 import Footer from "./components/Footer";
 import ProductsSection from "./components/ProductsSection";
+import { createClient } from "@/lib/supabase/server";
+import { getAllProducts } from "@/lib/products";
 
-export default function Home() {
+export default async function Home() {
+  const supabase = await createClient();
+  const products = await getAllProducts(supabase);
+
   return (
     <>
       <header className="hero">
@@ -42,7 +47,7 @@ export default function Home() {
         <span className="trust__item">Traditional Formulations</span>
       </div>
 
-      <ProductsSection />
+      <ProductsSection products={products} />
 
       <Footer />
     </>

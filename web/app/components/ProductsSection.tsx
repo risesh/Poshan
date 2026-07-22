@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { products } from "@/lib/products";
+import type { Product } from "@/lib/products";
 import ProductCard from "./ProductCard";
 
 const TABS = [
@@ -12,7 +12,7 @@ const TABS = [
   { label: "Energy", value: "energy" },
 ];
 
-export default function ProductsSection() {
+export default function ProductsSection({ products }: { products: Product[] }) {
   const [activeTab, setActiveTab] = useState("all");
 
   const visible = products.filter(

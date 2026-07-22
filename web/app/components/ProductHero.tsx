@@ -5,7 +5,13 @@ import { useCart } from "@/lib/cart-context";
 import type { Product } from "@/lib/products";
 
 export default function ProductHero({ product }: { product: Product }) {
-  const [selected, setSelected] = useState(product.variants[0]);
+  // Defaults to the same variant the product card already committed to
+  // (primaryVariantId — an in-stock one when any exists), so landing on
+  // the detail page doesn't greet you with "Out of stock" just because
+  // the first-listed size happens to be the disabled one.
+  const [selected, setSelected] = useState(
+    () => product.variants.find((v) => v.id === product.primaryVariantId) ?? product.variants[0]
+  );
   const { cart, addItem, incrementItem, decrementItem } = useCart();
   const qty = cart[selected.id] || 0;
 
@@ -40,14 +46,12 @@ export default function ProductHero({ product }: { product: Product }) {
             <span className="product-info__category-pill">{product.category}</span>
           </div>
           <h1 className="product-info__title">{product.name}</h1>
-          <p className="product-info__desc">
-            {product.descriptionLines.map((line, i) => (
-              <span key={i}>
-                {i > 0 && <br />}
-                {line}
-              </span>
+          <p className="product-info__desc">{product.description}</p>
+          <ul className="product-info__desc-list">
+            {product.descriptionBullets.map((line) => (
+              <li key={line}>{line}</li>
             ))}
-          </p>
+          </ul>
           <div className="product-info__attrs">
             {product.detailAttrs.map((attr) => (
               <span className="card__attr" key={attr}>
@@ -64,10 +68,12 @@ export default function ProductHero({ product }: { product: Product }) {
                   <button
                     key={variant.id}
                     type="button"
-                    className={`product-info__size-btn${variant.id === selected.id ? " is-active" : ""}`}
+                    className={`product-info__size-btn${variant.id === selected.id ? " is-active" : ""}${!variant.isInStock ? " product-info__size-btn--disabled" : ""}`}
+                    aria-disabled={!variant.isInStock}
                     onClick={() => setSelected(variant)}
                   >
                     {variant.size}
+                    {!variant.isInStock && <span className="product-info__size-btn__note">Out of stock</span>}
                   </button>
                 ))}
               </div>
@@ -77,7 +83,7 @@ export default function ProductHero({ product }: { product: Product }) {
               <span className="product-info__unit">{selected.unitLabel}</span>
             </div>
             <div className="product-info__cart-row">
-              {product.inStock ? (
+              {selected.isInStock ? (
                 qty > 0 ? (
                   <div className="card__qty card__qty--lg">
                     <button
@@ -114,14 +120,11 @@ export default function ProductHero({ product }: { product: Product }) {
 
           <div className="product-info__usage">
             <div className="product-info__usage-label">Usage details</div>
-            <p className="product-info__usage-text">
-              {product.usageLines.map((line, i) => (
-                <span key={i}>
-                  {i > 0 && <br />}
-                  {line}
-                </span>
+            <ul className="product-info__usage-list">
+              {product.usageBullets.map((line) => (
+                <li key={line}>{line}</li>
               ))}
-            </p>
+            </ul>
           </div>
         </div>
       </div>

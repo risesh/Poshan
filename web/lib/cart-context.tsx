@@ -1,11 +1,12 @@
 "use client";
 
-// Interim localStorage-backed cart — same mechanism and key
-// (poshan:cart) as the old assets/js/main.js, ported to React state so
-// the UI stays interactive during the Next.js migration. Gets replaced by
-// a Supabase-backed carts/cart_items table in backend Phase 4; every
-// consumer here goes through this context, so that swap only touches this
-// one file, not every component that reads/mutates the cart.
+// localStorage-backed cart (key poshan:cart), same mechanism as the old
+// static site. Cart *entries* are trusted client-side (added only via a
+// live ProductCard/ProductHero, so an id is always real at the moment it's
+// added) — but the *set of currently-valid ids* now lives in Supabase, not
+// a bundled static array, so validating a freshly-loaded cart against it
+// needs a network round trip. That validation only runs once, at mount:
+// see the hydration effect below.
 import {
   createContext,
   useCallback,
@@ -14,11 +15,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { products } from "./products";
+import { createClient } from "./supabase/client";
 
 const CART_KEY = "poshan:cart";
 const PROMO_KEY = "poshan:promo";
-const VALID_IDS = new Set(products.flatMap((p) => p.variants.map((v) => v.id)));
 
 type Cart = Record<string, number>;
 
@@ -46,22 +46,26 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null);
 
-function readCart(): Cart {
+function readRawCart(): Cart {
   if (typeof window === "undefined") return {};
   try {
     const raw = JSON.parse(window.localStorage.getItem(CART_KEY) || "{}");
     const cleaned: Cart = {};
     for (const [id, qty] of Object.entries(raw)) {
-      // Prune orphaned ids the same way main.js's getCart() does — see
-      // CLAUDE.md's PRODUCT_CATALOG note on why this matters.
-      if (VALID_IDS.has(id) && typeof qty === "number" && qty > 0) {
-        cleaned[id] = qty;
-      }
+      if (typeof qty === "number" && qty > 0) cleaned[id] = qty;
     }
     return cleaned;
   } catch {
     return {};
   }
+}
+
+function pruneToValidIds(cart: Cart, validIds: Set<string>): Cart {
+  const cleaned: Cart = {};
+  for (const [id, qty] of Object.entries(cart)) {
+    if (validIds.has(id)) cleaned[id] = qty;
+  }
+  return cleaned;
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
@@ -73,18 +77,39 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [promoCode, setPromoCodeState] = useState<string | null>(null);
 
   useEffect(() => {
-    // Intentional: localStorage isn't available during SSR, so hydrating
-    // real cart state has to happen post-mount, in an effect.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setCartState(readCart());
-    setPromoCodeState(window.localStorage.getItem(PROMO_KEY));
-    setHydrated(true);
+    let cancelled = false;
+    const supabase = createClient();
+
+    // Prune against real product_variants ids, not a static array. This
+    // also handles the one-time migration for anyone with a pre-existing
+    // localStorage cart from before this data source switched: an old
+    // slug-style id (e.g. 'kefir-500ml') simply won't be in this set and
+    // gets silently dropped, identical to how any other orphaned id is
+    // already handled below.
+    supabase
+      .from("product_variants")
+      .select("id")
+      .then(({ data }) => {
+        if (cancelled) return;
+        const validIds = new Set((data ?? []).map((row) => row.id as string));
+        const pruned = pruneToValidIds(readRawCart(), validIds);
+        window.localStorage.setItem(CART_KEY, JSON.stringify(pruned));
+        setCartState(pruned);
+        setPromoCodeState(window.localStorage.getItem(PROMO_KEY));
+        setHydrated(true);
+      });
+
     const onStorage = (e: StorageEvent) => {
-      if (e.key === CART_KEY) setCartState(readCart());
+      // Cross-tab sync — the other tab only ever wrote ids that were valid
+      // there too, so no re-validation against Supabase is needed here.
+      if (e.key === CART_KEY) setCartState(readRawCart());
       if (e.key === PROMO_KEY) setPromoCodeState(window.localStorage.getItem(PROMO_KEY));
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const setPromoCode = useCallback((code: string | null) => {
@@ -100,7 +125,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const bump = useCallback(
     (id: string, delta: number) => {
-      const current = readCart();
+      const current = readRawCart();
       const next = (current[id] || 0) + delta;
       const updated = { ...current };
       if (next > 0) updated[id] = next;
@@ -115,7 +140,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const decrementItem = useCallback((id: string) => bump(id, -1), [bump]);
   const removeItem = useCallback(
     (id: string) => {
-      const current = readCart();
+      const current = readRawCart();
       const updated = { ...current };
       delete updated[id];
       persist(updated);

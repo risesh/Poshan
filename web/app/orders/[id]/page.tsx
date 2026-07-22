@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getVariantById } from "@/lib/products";
+import { fetchVariantsByIds } from "@/lib/products";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -41,6 +41,17 @@ export default async function OrderConfirmationPage(props: PageProps<"/orders/[i
 
   const address = order.addresses;
   const firstName = (profile?.name || "").split(" ")[0];
+
+  // Thumbnail image/gradient only — the line items themselves render
+  // entirely from the order's own snapshot columns below, never from
+  // live product data (a later product edit/removal must never change
+  // what a past order shows).
+  const variantIds = (
+    order.order_items as { product_variant_id: string | null }[]
+  )
+    .map((item) => item.product_variant_id)
+    .filter((id): id is string => !!id);
+  const variantLookup = await fetchVariantsByIds(supabase, variantIds);
 
   return (
     <>
@@ -96,7 +107,7 @@ export default async function OrderConfirmationPage(props: PageProps<"/orders/[i
               quantity: number;
               line_total_rupees: number;
             }) => {
-              const hit = item.product_variant_id ? getVariantById(item.product_variant_id) : undefined;
+              const hit = item.product_variant_id ? variantLookup.get(item.product_variant_id) : undefined;
               const product = hit?.product;
               const imageStyle = product?.image
                 ? { backgroundImage: `url('${product.image}')`, backgroundSize: "cover", backgroundPosition: "center" }

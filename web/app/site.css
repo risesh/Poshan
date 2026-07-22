@@ -811,6 +811,115 @@ a { color: inherit; }
   margin: 0;
 }
 
+/* ---------- Legal/policy pages (shipping, terms, privacy) ---------- */
+
+.policy-hero {
+  background: var(--color-bone);
+  border-bottom: 1px solid var(--border-color);
+  padding: 56px var(--gutter) 44px;
+}
+
+.policy-hero__inner {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.policy-hero__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--color-teal);
+  margin-bottom: 14px;
+}
+
+.policy-hero__title {
+  font-family: var(--font-editorial);
+  font-weight: 400;
+  font-size: 40px;
+  color: var(--color-ink);
+  margin: 0 0 14px;
+  line-height: 1.15;
+}
+
+.policy-hero__intro {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 16px;
+  color: rgba(30, 58, 52, 0.60);
+  line-height: 1.7;
+  margin: 0;
+  max-width: 560px;
+}
+
+.policy-hero__updated {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: rgba(30, 58, 52, 0.45);
+  letter-spacing: 0.04em;
+  margin-top: 20px;
+}
+
+.policy-content {
+  background: #fff;
+  padding: 52px var(--gutter);
+}
+
+.policy-content__inner {
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+}
+
+.policy-content h2 {
+  font-family: var(--font-editorial);
+  font-weight: 400;
+  font-size: 21px;
+  color: var(--color-ink);
+  margin: 40px 0 12px;
+  line-height: 1.3;
+}
+
+.policy-content h2:first-child {
+  margin-top: 0;
+}
+
+.policy-content p {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 15px;
+  color: rgba(30, 58, 52, 0.72);
+  line-height: 1.8;
+  margin: 0 0 14px;
+}
+
+.policy-content ul {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+}
+
+.policy-content li {
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 15px;
+  color: rgba(30, 58, 52, 0.72);
+  line-height: 1.8;
+  margin: 0 0 8px;
+  padding-left: 20px;
+  position: relative;
+}
+
+.policy-content li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--color-amla);
+}
+
 /* ---------- Product detail ---------- */
 
 .product-breadcrumb {
@@ -926,8 +1035,30 @@ a { color: inherit; }
   font-weight: 300;
   font-size: 17.6px;
   color: rgba(30, 58, 52, 0.65);
-  margin: 0 0 24px;
+  margin: 0 0 12px;
   line-height: 1.6;
+}
+
+.product-info__desc-list {
+  list-style: none;
+  font-family: var(--font-display);
+  font-weight: 300;
+  font-size: 17.6px;
+  color: rgba(30, 58, 52, 0.65);
+  margin: 0 0 24px;
+  padding: 0;
+  line-height: 1.6;
+}
+
+.product-info__desc-list li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.product-info__desc-list li::before {
+  content: "-";
+  position: absolute;
+  left: 0;
 }
 
 .product-info__attrs {
@@ -973,6 +1104,32 @@ a { color: inherit; }
   border-color: var(--color-ink);
   background: var(--color-ink);
   color: var(--color-bone);
+}
+
+/* Still clickable (not a native disabled button) — selecting an
+   out-of-stock size is how the Add row below shows its "Out of stock"
+   state, same as a single-variant product already did. */
+.product-info__size-btn--disabled {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: rgba(30, 58, 52, 0.4);
+  background: var(--color-mist);
+}
+
+.product-info__size-btn--disabled.is-active {
+  border-color: rgba(30, 58, 52, 0.4);
+  background: var(--color-mist);
+  color: rgba(30, 58, 52, 0.55);
+}
+
+.product-info__size-btn__note {
+  font-family: var(--font-display);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-sindoor);
 }
 
 .product-info__price-row {
@@ -1026,13 +1183,26 @@ a { color: inherit; }
   margin-bottom: 4px;
 }
 
-.product-info__usage-text {
+.product-info__usage-list {
+  list-style: none;
   font-family: var(--font-display);
   font-style: italic;
   font-size: 14.3px;
   color: rgba(30, 58, 52, 0.70);
   margin: 0;
+  padding: 0;
   line-height: 1.55;
+}
+
+.product-info__usage-list li {
+  position: relative;
+  padding-left: 14px;
+}
+
+.product-info__usage-list li::before {
+  content: "-";
+  position: absolute;
+  left: 0;
 }
 
 .product-panel {
@@ -1423,6 +1593,85 @@ a { color: inherit; }
 
 .cart-summary__promo-note--error { color: var(--color-sindoor); }
 
+/* Promo code picker (app/components/PromoCodeField.tsx) — the trigger
+   reuses .cart-summary__promo-input's box styling (it's a <button>, not an
+   <input>, hence the small reset below); the dropdown mirrors
+   .checkout-autocomplete__dropdown's pattern (code = main text, terms
+   description underneath, same as address suggestions' main/secondary). */
+.promo-dropdown-wrap { position: relative; }
+
+.promo-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.promo-dropdown-trigger:hover:not(:disabled),
+.promo-dropdown-trigger.is-open {
+  border-color: var(--color-teal);
+  background: #fff;
+}
+
+.promo-dropdown-trigger:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.promo-dropdown-trigger__label { color: rgba(30, 58, 52, 0.55); }
+
+.promo-dropdown-trigger__chevron {
+  flex: none;
+  color: rgba(30, 58, 52, 0.55);
+  transition: transform 0.15s ease;
+}
+
+.promo-dropdown-trigger.is-open .promo-dropdown-trigger__chevron { transform: rotate(180deg); }
+
+.promo-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(30, 58, 52, 0.14);
+  z-index: 10;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.promo-dropdown__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid #F0EBDF;
+  background: none;
+  cursor: pointer;
+}
+
+.promo-dropdown__item:last-child { border-bottom: none; }
+.promo-dropdown__item:hover { background: var(--color-bone); }
+
+.promo-dropdown__code {
+  font-family: var(--font-mono);
+  font-size: 13.2px;
+  font-weight: 500;
+  color: var(--color-ink);
+  letter-spacing: 0.02em;
+}
+
+.promo-dropdown__desc {
+  font-family: var(--font-display);
+  font-size: 12.1px;
+  color: rgba(30, 58, 52, 0.6);
+  margin-top: 2px;
+}
+
 .cart-summary__checkout {
   width: 100%;
   font-family: var(--font-display);
@@ -1437,6 +1686,11 @@ a { color: inherit; }
   cursor: pointer;
 }
 
+.cart-summary__checkout:disabled {
+  background: rgba(30, 58, 52, 0.35);
+  cursor: not-allowed;
+}
+
 .cart-summary__shipping-note {
   margin-top: 16px;
   font-family: var(--font-mono);
@@ -1445,6 +1699,14 @@ a { color: inherit; }
   text-align: center;
   line-height: 1.6;
 }
+
+.cart-summary__shipping-note--list {
+  text-align: left;
+  list-style: disc;
+  padding-left: 18px;
+}
+
+.cart-summary__shipping-note--list li + li { margin-top: 4px; }
 
 /* Past-orders table — authored (no design source for an order-history
    view). A real <table> rather than the cart-item card list, since each
@@ -2121,6 +2383,8 @@ a { color: inherit; }
   .story-columns__grid { grid-template-columns: 1fr; gap: 40px; }
   .principles { padding-top: 48px; padding-bottom: 48px; }
 
+  .policy-hero__title { font-size: 32px; }
+
   .product-hero__grid { grid-template-columns: 1fr; gap: 32px; }
   .product-hero__image { aspect-ratio: 16 / 9; }
   .product-info { padding-top: 0; }
@@ -2413,6 +2677,65 @@ a { color: inherit; }
   color: rgba(30, 58, 52, 0.7);
   margin-top: 6px;
 }
+
+/* "Use a new address" pinned as the first list entry (replaces the old
+   top-right toggle button, which was easy to miss) — same card shape as a
+   saved address, dashed border to read as an action rather than data. */
+.checkout-address-card--add {
+  align-items: center;
+  border-style: dashed;
+}
+
+.checkout-address-card--add.is-selected { border-style: solid; }
+
+.checkout-address-card__radio--add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 13px;
+  line-height: 1;
+  color: var(--color-teal);
+  border-color: var(--color-teal);
+}
+
+/* Wraps a saved-address card plus its Edit/Delete actions — the actions
+   are a sibling of the card's own <button>, not nested inside it (a
+   <button> inside a <button> is invalid HTML), positioned over its
+   top-right corner instead. */
+.checkout-address-card-shell { position: relative; max-width: 560px; margin-bottom: 14px; }
+.checkout-address-card-shell .checkout-address-card { max-width: none; margin-bottom: 0; }
+
+.checkout-address-card__actions {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: flex;
+  gap: 14px;
+}
+
+.checkout-address-card__action {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--color-teal);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.checkout-address-card__action--delete { color: var(--color-sindoor); }
+
+.checkout-address-card__action:disabled { opacity: 0.5; cursor: wait; }
+
+.checkout-address-edit-form__actions { display: flex; align-items: center; gap: 20px; margin-top: 4px; }
+
+.checkout-address-toggle--muted { color: rgba(30, 58, 52, 0.55); }
+
+.checkout-address-toggle:disabled { opacity: 0.6; cursor: wait; }
 
 .checkout-address-form { max-width: 560px; }
 .checkout-address-form__row { display: flex; gap: 14px; margin-bottom: 16px; }
@@ -2902,6 +3225,7 @@ a { color: inherit; }
   border: 1px solid var(--border-color);
   border-radius: var(--radius-card);
   padding: 20px;
+  box-shadow: 0 1px 3px rgba(30, 58, 52, 0.06);
 }
 
 .admin-stat-grid {
@@ -2973,11 +3297,31 @@ a { color: inherit; }
   border-radius: var(--radius-button);
   padding: 6px 12px;
   cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
 }
 
 .admin-tab.is-active {
   background: var(--color-ink);
   color: var(--color-bone);
+}
+
+/* The Controls page's Products/Promo codes sub-nav (ControlsLayout) links
+   to a different route per tab rather than toggling in place like the
+   dashboard's MTD/QTD/YTD period picker (AdminCharts.tsx, the other
+   .admin-tab-group consumer) — scoped here so the inactive tab reads as
+   its own clickable button (bordered, white) instead of the period
+   picker's plain/no-background inactive style, which is too easy to miss
+   on a page where the two links are the only way to switch pages. */
+.admin-controls-subnav .admin-tab:not(.is-active) {
+  background: #fff;
+  border: 1px solid var(--border-color);
+  color: var(--color-ink);
+}
+
+.admin-controls-subnav .admin-tab:not(.is-active):hover {
+  border-color: var(--color-teal);
+  color: var(--color-teal);
 }
 
 .admin-chart-empty {
@@ -3033,11 +3377,19 @@ a { color: inherit; }
   font-family: var(--font-mono);
   font-size: 13.2px;
   color: var(--color-ink);
-  border: 1px solid var(--border-color);
+  background: #fff;
+  /* var(--border-color) is too pale (#DCE6DE, near-white) to read as a
+     field boundary on its own — this is a form control, not a subtle
+     content divider, so it needs a border you can actually see (0.6
+     opacity clears WCAG's 3:1 minimum for UI component boundaries,
+     verified against the white card background this sits on). */
+  border: 1px solid rgba(30, 58, 52, 0.48);
   border-radius: var(--radius-button);
   padding: 8px 10px;
   outline: none;
 }
+
+.admin-filter-bar__input:focus { border-color: var(--color-teal); }
 
 .admin-filter-bar__apply {
   font-family: var(--font-display);
@@ -3174,4 +3526,418 @@ a { color: inherit; }
   .admin-chart-grid { grid-template-columns: 1fr; }
   .admin-order-card__body { grid-template-columns: 1fr; gap: 12px; }
   .admin-order-card__col--total { text-align: left; }
+}
+
+/* ===== Admin — Controls tab (products + promo codes) ===== */
+
+/* Breaks out of .admin-content's shared 1200px cap so Controls (which
+   needs real horizontal room for its two-column form+preview layout) can
+   use the unused margin on wider viewports, without widening Dashboard/
+   Orders — their stat/chart/order-card grids are tuned for the standard
+   width and aren't part of this request. The 50% - 50vw pairing cancels
+   out any ancestor's centering + padding regardless of nesting depth,
+   because % resolves against this element's own containing-block width
+   while vw is viewport-absolute — the two bases differ by exactly the
+   offset between this box's edge and the true viewport edge. Capped at
+   1800px so it doesn't run unbounded on ultrawide monitors. */
+.admin-controls-page {
+  box-sizing: border-box;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding-left: var(--gutter);
+  padding-right: var(--gutter);
+}
+
+/* The outer element above is full-bleed and uncapped (a fixed max-width
+   there would fight the negative-margin breakout: once the cap engaged,
+   the box would stay pinned near the left edge instead of re-centering,
+   eating the freed-up space asymmetrically off the right side only —
+   caught by screenshot-testing this at 1920px before shipping it). Each
+   direct child gets its own cap + auto-centering instead, which stays
+   correctly centered whether or not that cap is actually binding. */
+.admin-controls-page > * {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.admin-controls-subnav { margin-bottom: 24px; }
+
+.admin-controls-card { margin-bottom: 32px; }
+
+/* A small pill switch — the shared enable/disable control for products,
+   variants, and promo codes, styled from scratch since no toggle/switch
+   pattern exists elsewhere in the site yet. */
+.admin-toggle {
+  position: relative;
+  width: 36px;
+  height: 20px;
+  border-radius: var(--radius-pill);
+  /* --border-color/--color-mist are the same pale hex (#DCE6DE) — using
+     either alone for both fill and edge left this switch's off state
+     essentially invisible against the white row background. An ink-based
+     rgba gives it a real, visible edge regardless of what's behind it. */
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  background: rgba(30, 58, 52, 0.36);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.admin-toggle.is-on { background: var(--color-teal); border-color: var(--color-teal); }
+
+.admin-toggle:disabled { cursor: wait; opacity: 0.7; }
+
+.admin-toggle__knob {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(30, 58, 52, 0.4);
+  transform: translateX(0);
+  transition: transform 0.15s ease;
+}
+
+.admin-toggle.is-on .admin-toggle__knob { transform: translateX(16px); }
+
+.admin-controls-table { display: flex; flex-direction: column; }
+
+.admin-controls-table__head {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.6fr 1fr;
+  gap: 12px;
+  padding: 0 0 10px;
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(30, 58, 52, 0.5);
+}
+
+.admin-controls-table__head--promo { grid-template-columns: 1fr 1.4fr 1.6fr 1fr 1.4fr; }
+
+.admin-controls-table__row {
+  display: grid;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-family: var(--font-display);
+  font-size: 13.2px;
+  color: var(--color-ink);
+}
+
+.admin-controls-table__row--promo { grid-template-columns: 1fr 1.4fr 1.6fr 1fr 1.4fr; }
+
+.admin-controls-promo-code { font-family: var(--font-mono); letter-spacing: 0.04em; }
+
+.admin-controls-promo-row__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+}
+
+.admin-controls-edit-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-button);
+  padding: 4px 10px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(30, 58, 52, 0.65);
+  cursor: pointer;
+}
+
+.admin-controls-edit-btn:hover { border-color: var(--color-teal); color: var(--color-teal); }
+.admin-controls-edit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.admin-controls-cancel-btn {
+  background: none;
+  border: none;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(30, 58, 52, 0.55);
+  cursor: pointer;
+  padding: 8px 4px;
+}
+
+.admin-controls-cancel-btn:hover { color: var(--color-ink); }
+.admin-controls-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.admin-controls-promo-edit {
+  max-width: none;
+  padding: 16px;
+  margin: 8px 0;
+  background: var(--color-bone);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-button);
+}
+
+.admin-controls-product-row { border-bottom: 1px solid var(--border-color); padding: 10px 0; }
+
+/* The whole row toggles expand/collapse now, not just the product name —
+   role="button" on a div (Toggle below is a real nested <button>, so this
+   can't be one itself); the hover tint is the affordance that it's
+   clickable anywhere, not just on the name text. */
+.admin-controls-product-row__main {
+  display: grid;
+  grid-template-columns: 2fr 1fr 0.6fr 1fr;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  border-radius: var(--radius-button);
+  margin: 0 -8px;
+  padding: 4px 8px;
+}
+
+.admin-controls-product-row__main:hover { background: var(--color-bone); }
+
+.admin-controls-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-size: 13.2px;
+  color: var(--color-ink);
+}
+
+.admin-controls-expand-btn__chevron {
+  display: inline-block;
+  color: rgba(30, 58, 52, 0.5);
+  transition: transform 0.15s ease;
+}
+
+.admin-controls-expand-btn__chevron.is-open { transform: rotate(90deg); }
+
+.admin-controls-variant-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+  padding-left: 24px;
+}
+
+.admin-controls-variant-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1.2fr auto;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 12.1px;
+  color: var(--color-ink);
+  position: relative;
+}
+
+.admin-controls-variant-row__qty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(30, 58, 52, 0.55);
+}
+
+.admin-controls-qty-input { width: 64px; padding: 6px 8px; }
+
+/* The product-level toggle being on doesn't mean the product is actually
+   purchasable — flags the case where it's "enabled" but every variant is
+   out of stock or individually disabled, so the storefront hides it
+   anyway (see ProductRow.tsx's noneAvailableDespiteEnabled). */
+.admin-controls-stock-warning {
+  font-family: var(--font-mono);
+  font-size: 11.9px;
+  color: var(--color-sindoor);
+}
+
+/* ----- Create forms (shared between products and promo codes) ----- */
+
+.admin-controls-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 720px;
+}
+
+.admin-controls-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+  align-items: start;
+}
+
+.admin-controls-form-grid .admin-controls-form { max-width: none; }
+
+.admin-controls-form__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--color-bone);
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-button);
+}
+
+.admin-controls-form__section-title {
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(30, 58, 52, 0.55);
+}
+
+.admin-controls-form__row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.admin-controls-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 200px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: rgba(30, 58, 52, 0.6);
+}
+
+.admin-controls-field--narrow { flex: 0 1 140px; }
+
+.admin-controls-textarea {
+  font-family: var(--font-mono);
+  font-size: 13.2px;
+  color: var(--color-ink);
+  background: #fff;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-button);
+  padding: 8px 10px;
+  outline: none;
+  min-height: 64px;
+  resize: vertical;
+}
+
+.admin-controls-textarea:focus { border-color: var(--color-teal); }
+
+.admin-controls-checkbox-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.admin-controls-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.1px;
+  color: var(--color-ink);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.admin-controls-repeatable-row,
+.admin-controls-variant-form-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding: 10px;
+  background: #fff;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-button);
+}
+
+.admin-controls-remove-btn {
+  background: none;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-sindoor);
+  flex-shrink: 0;
+}
+
+.admin-controls-remove-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.admin-controls-add-btn {
+  align-self: flex-start;
+  background: none;
+  border: 1px dashed rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-button);
+  padding: 8px 14px;
+  font-family: var(--font-display);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--color-teal);
+  cursor: pointer;
+}
+
+.admin-controls-scope-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
+
+.admin-controls-form__error { position: static; white-space: normal; }
+
+.admin-controls-form__success {
+  font-family: var(--font-mono);
+  font-size: 12.1px;
+  color: var(--color-amla);
+}
+
+/* Reference-only mock of the real product detail page, built from the
+   actual ProductHero/ProductPanel components (non-interactive — clicking
+   variant/Add-to-cart controls inside it must never touch the admin's own
+   real cart) — see ScaledPreview.tsx. It renders those components at the
+   real page's reference width, then scales the whole box down to fit this
+   pane, so the grid/spacing proportions always match the live page exactly
+   instead of being squashed by a narrow container. */
+.admin-controls-preview-pane {
+  position: sticky;
+  top: 16px;
+  max-width: 829px;
+  background: #fff;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-card);
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(30, 58, 52, 0.08);
+}
+
+.admin-controls-preview {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-button);
+  margin-top: 10px;
+  background: var(--color-bone);
+}
+
+.admin-controls-preview__canvas {
+  pointer-events: none;
+  transform-origin: top left;
+}
+
+@media (max-width: 1100px) {
+  .admin-controls-form-grid { grid-template-columns: 1fr; }
+  .admin-controls-preview-pane { position: static; max-width: 829px; }
+}
+
+@media (max-width: 900px) {
+  .admin-controls-table__head,
+  .admin-controls-table__head--promo,
+  .admin-controls-table__row--promo,
+  .admin-controls-product-row__main,
+  .admin-controls-variant-row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
 }

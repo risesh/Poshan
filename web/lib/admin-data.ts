@@ -227,3 +227,118 @@ export async function getOrderList(supabase: SupabaseClient, from: Date, to: Dat
     address: o.addresses ?? null,
   }));
 }
+
+export type AdminProductVariant = {
+  id: string;
+  sizeLabel: string;
+  sku: string;
+  priceRupees: number;
+  stockQuantity: number;
+  isInStock: boolean; // raw admin override, not computed against stockQuantity
+  unitLabel: string;
+};
+
+export type AdminProduct = {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  isInStock: boolean; // raw products.is_instock master toggle
+  variants: AdminProductVariant[];
+};
+
+// Unlike lib/products.ts's getAllProducts (storefront-shaped: folds
+// is_instock + stock_quantity into a single computed `isInStock` per
+// variant), the Controls tab needs the two raw fields separately so the
+// admin can edit each independently.
+export async function getAdminProductList(supabase: SupabaseClient): Promise<AdminProduct[]> {
+  const { data, error } = await supabase
+    .from("products")
+    .select(
+      "id, slug, name, category, is_instock, product_variants ( id, size_label, sku, price_rupees, stock_quantity, is_instock, unit_label, sort_order )"
+    )
+    .order("created_at");
+  if (error) throw error;
+
+  type VariantRow = {
+    id: string;
+    size_label: string;
+    sku: string;
+    price_rupees: number;
+    stock_quantity: number;
+    is_instock: boolean;
+    unit_label: string;
+    sort_order: number;
+  };
+  type Row = {
+    id: string;
+    slug: string;
+    name: string;
+    category: string;
+    is_instock: boolean;
+    product_variants: VariantRow[];
+  };
+
+  return ((data ?? []) as unknown as Row[]).map((row) => ({
+    id: row.id,
+    slug: row.slug,
+    name: row.name,
+    category: row.category,
+    isInStock: row.is_instock,
+    variants: [...row.product_variants]
+      .sort((a, b) => a.sort_order - b.sort_order || a.size_label.localeCompare(b.size_label))
+      .map((v) => ({
+        id: v.id,
+        sizeLabel: v.size_label,
+        sku: v.sku,
+        priceRupees: v.price_rupees,
+        stockQuantity: v.stock_quantity,
+        isInStock: v.is_instock,
+        unitLabel: v.unit_label,
+      })),
+  }));
+}
+
+export type AdminPromoCode = {
+  id: string;
+  code: string;
+  discount_type: "flat" | "percent";
+  discount_value: number;
+  min_order_rupees: number;
+  active: boolean;
+  starts_at: string | null;
+  expires_at: string | null;
+  scopedProducts: { id: string; name: string }[];
+};
+
+// Unlike lib/promo.ts's listActivePromoCodes (which filters to currently-
+// active, in-window codes for the customer-facing picker), this returns
+// every promo code regardless of state — the Controls tab needs to show
+// and re-enable disabled/expired ones too, not just what's live right now.
+export async function getAdminPromoCodeList(supabase: SupabaseClient): Promise<AdminPromoCode[]> {
+  const { data, error } = await supabase
+    .from("promo_codes")
+    .select(
+      "id, code, discount_type, discount_value, min_order_rupees, active, starts_at, expires_at, promo_code_products ( products ( id, name ) )"
+    )
+    .order("code");
+  if (error) throw error;
+
+  type Row = Omit<AdminPromoCode, "scopedProducts"> & {
+    promo_code_products: { products: { id: string; name: string } | null }[];
+  };
+
+  return ((data ?? []) as unknown as Row[]).map((row) => ({
+    id: row.id,
+    code: row.code,
+    discount_type: row.discount_type,
+    discount_value: row.discount_value,
+    min_order_rupees: row.min_order_rupees,
+    active: row.active,
+    starts_at: row.starts_at,
+    expires_at: row.expires_at,
+    scopedProducts: row.promo_code_products
+      .map((r) => r.products)
+      .filter((p): p is { id: string; name: string } => !!p),
+  }));
+}

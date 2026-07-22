@@ -6,20 +6,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
 import { createClient } from "@/lib/supabase/client";
-import { getVariantById } from "@/lib/products";
-import { computePromoDiscount, type PromoInfo } from "@/lib/order-math";
+import { fetchVariantsByIds, type VariantLookup } from "@/lib/products";
+import { computeCartPricing, MIN_ORDER_RUPEES, type PromoInfo } from "@/lib/order-math";
 import { lookupPromoCode } from "@/lib/promo";
+import PromoCodeField from "./PromoCodeField";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 export default function CartPageBody() {
-  const { cart, total, incrementItem, decrementItem, removeItem, promoCode, setPromoCode } = useCart();
+  const { cart, total, incrementItem, decrementItem, removeItem, promoCode } = useCart();
   const { user } = useAuth();
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
-  const [promoInput, setPromoInput] = useState("");
-  const [promoChecking, setPromoChecking] = useState(false);
-  const [promoError, setPromoError] = useState<string | null>(null);
   // The full promo row for cart context's promoCode — re-fetched whenever
   // that code changes (including on hydration from localStorage on load),
   // so the discount always reflects the *current* promo definition rather
@@ -41,6 +39,21 @@ export default function CartPageBody() {
   // cleared (removePromo doesn't wait for a re-render before the discount
   // needs to read as gone).
   const effectiveAppliedPromo = promoCode ? appliedPromo : null;
+
+  // Cart pricing now needs a Supabase round trip (variant ids/prices no
+  // longer live in a bundled static array) — resolved once per cart
+  // change, same idiom as the appliedPromo effect above.
+  const [variantLookup, setVariantLookup] = useState<VariantLookup | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchVariantsByIds(supabase, Object.keys(cart)).then((lookup) => {
+      if (!cancelled) setVariantLookup(lookup);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cart, supabase]);
 
   const entries = Object.entries(cart);
   const itemCount = entries.length;
@@ -72,47 +85,41 @@ export default function CartPageBody() {
     );
   }
 
-  const subtotal = entries.reduce((sum, [id, qty]) => {
-    const hit = getVariantById(id);
-    return hit ? sum + hit.variant.priceRupees * qty : sum;
-  }, 0);
-  const shipping = subtotal >= 500 ? 0 : 49;
-  const discount = computePromoDiscount(subtotal, effectiveAppliedPromo);
-  const grandTotal = subtotal + shipping - discount;
+  if (!variantLookup) {
+    return (
+      <>
+        <section className="cart-header">
+          <div className="cart-header__inner">
+            <h1 className="cart-header__title">Your cart</h1>
+            <div className="cart-header__meta">{meta}</div>
+          </div>
+        </section>
+        <section className="cart-body">
+          <div className="cart-empty">
+            <h2 className="cart-empty__title">Loading your cart…</h2>
+          </div>
+        </section>
+      </>
+    );
+  }
 
-  const applyPromo = async () => {
-    const code = promoInput.trim();
-    if (promoCode || !code || promoChecking) return;
-    setPromoChecking(true);
-    setPromoError(null);
-    // RLS on promo_codes only allows selecting rows where active = true, so
-    // an inactive code comes back as "no row" — indistinguishable from a
-    // code that was never registered or one that's expired, which is fine:
-    // all three should read as "not valid" here.
-    const promo = await lookupPromoCode(supabase, code);
-    setPromoChecking(false);
-
-    if (!promo) {
-      setPromoError("That promo code isn't valid or has expired.");
-      return;
-    }
-    if (subtotal < promo.minOrderRupees) {
-      setPromoError(`This code needs a minimum order of ${formatRupees(promo.minOrderRupees)}.`);
-      return;
-    }
-
-    setAppliedPromo(promo);
-    setPromoCode(promo.code);
-  };
-
-  const removePromo = () => {
-    setPromoCode(null);
-    setAppliedPromo(null);
-    setPromoInput("");
-    setPromoError(null);
-  };
+  let pricing;
+  try {
+    pricing = computeCartPricing(cart, effectiveAppliedPromo, variantLookup);
+  } catch {
+    pricing = null;
+  }
+  const subtotal = pricing?.subtotalRupees ?? 0;
+  // No delivery address yet on the cart page, so no real shipping fee can
+  // be shown here — it's distance-based now (lib/shipping.ts), computed
+  // once a delivery location is chosen at checkout.
+  const discount = pricing?.discountRupees ?? 0;
+  const grandTotal = subtotal - discount;
+  const belowMinimum = subtotal < MIN_ORDER_RUPEES;
+  const amountToMinimum = MIN_ORDER_RUPEES - subtotal;
 
   const handleCheckout = () => {
+    if (belowMinimum || !pricing) return;
     router.push(user ? "/checkout" : "/signin?return=/checkout");
   };
 
@@ -128,7 +135,7 @@ export default function CartPageBody() {
         <div className="cart-body__grid">
           <div className="cart-items">
             {entries.map(([id, qty]) => {
-              const hit = getVariantById(id);
+              const hit = variantLookup.get(id);
               if (!hit) return null;
               const { product, variant } = hit;
               return (
@@ -152,13 +159,12 @@ export default function CartPageBody() {
                   <div>
                     <div className="cart-item__badge">{product.cartBadge}</div>
                     <div className="cart-item__name">{product.name}</div>
-                    <div className="cart-item__size">
-                      {variant.size === "500ml"
-                        ? "500 ml"
-                        : variant.size === "1L"
-                          ? "1 L"
-                          : variant.size}
-                    </div>
+                    <div className="cart-item__size">{variant.size}</div>
+                    {!variant.isInStock && (
+                      <div className="cart-summary__promo-note cart-summary__promo-note--error">
+                        No longer in stock — remove to continue
+                      </div>
+                    )}
                     <div className="cart-item__controls">
                       <div className="card__qty">
                         <button
@@ -207,7 +213,7 @@ export default function CartPageBody() {
               </div>
               <div className="cart-summary__row">
                 <span>Shipping</span>
-                <span>{shipping === 0 ? "Free" : formatRupees(shipping)}</span>
+                <span style={{ color: "rgba(30,58,52,0.55)" }}>Calculated at checkout</span>
               </div>
               {discount > 0 && (
                 <div className="cart-summary__row cart-summary__row--discount">
@@ -220,38 +226,31 @@ export default function CartPageBody() {
               <span className="cart-summary__total-label">Total</span>
               <span className="cart-summary__total-value">{formatRupees(grandTotal)}</span>
             </div>
-            <div className="cart-summary__promo">
-              <input
-                type="text"
-                placeholder="Promo code"
-                className="cart-summary__promo-input"
-                value={promoCode ?? promoInput}
-                onChange={(e) => {
-                  setPromoInput(e.target.value);
-                  if (promoError) setPromoError(null);
-                }}
-                disabled={!!promoCode || promoChecking}
-              />
-              <button
-                type="button"
-                className={`cart-summary__promo-btn${promoCode ? " cart-summary__promo-btn--remove" : ""}`}
-                onClick={promoCode ? removePromo : applyPromo}
-                disabled={promoChecking}
-              >
-                {promoCode ? "Remove" : promoChecking ? "Checking…" : "Apply"}
-              </button>
-            </div>
-            {promoError && (
-              <div className="cart-summary__promo-note cart-summary__promo-note--error">{promoError}</div>
+            {belowMinimum && (
+              <div className="cart-summary__promo-note cart-summary__promo-note--error">
+                Add {formatRupees(amountToMinimum)} more to reach the {formatRupees(MIN_ORDER_RUPEES)} minimum
+                order value.
+              </div>
             )}
+            {!pricing && (
+              <div className="cart-summary__promo-note cart-summary__promo-note--error">
+                Remove any out-of-stock items above to continue.
+              </div>
+            )}
+            <PromoCodeField subtotalRupees={subtotal} />
             <button
               type="button"
               className="cart-summary__checkout"
               onClick={handleCheckout}
+              disabled={belowMinimum || !pricing}
             >
               Checkout · {formatRupees(grandTotal)}
             </button>
-            <div className="cart-summary__shipping-note">Free shipping over ₹500</div>
+            <ul className="cart-summary__shipping-note cart-summary__shipping-note--list">
+              <li>Minimum order value – ₹250</li>
+              <li>Free shipping under 5km, ₹10 extra per km above 5km</li>
+              <li>Free delivery for order values above ₹1000</li>
+            </ul>
           </aside>
         </div>
       </section>
