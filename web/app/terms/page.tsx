@@ -1,9 +1,10 @@
 import Footer from "@/app/components/Footer";
 
 export const metadata = {
-  title: "Terms & Conditions — Poषण",
+  title: "Terms & Conditions",
   description:
     "The terms that govern your use of the Poषण website and your purchase of our products.",
+  alternates: { canonical: "/terms" },
 };
 
 export default function TermsPage() {

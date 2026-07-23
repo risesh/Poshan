@@ -3,9 +3,12 @@ import { createClient } from "@/lib/supabase/server";
 import CheckoutBody from "@/app/components/CheckoutBody";
 import Footer from "@/app/components/Footer";
 
+// Account-gated purchase flow — zero public search value, same reasoning
+// as cart/orders.
 export const metadata = {
-  title: "Checkout — Poषण",
+  title: "Checkout",
   description: "Checkout — delivery address and payment.",
+  robots: { index: false, follow: false },
 };
 
 export default async function CheckoutPage() {

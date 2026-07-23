@@ -1,9 +1,10 @@
 import Footer from "@/app/components/Footer";
 
 export const metadata = {
-  title: "Shipping & Returns — Poषण",
+  title: "Shipping & Returns",
   description:
     "How and when Poषण ships, delivery charges, and our returns policy for perishable, preservative-free food.",
+  alternates: { canonical: "/shipping" },
 };
 
 export default function ShippingPage() {

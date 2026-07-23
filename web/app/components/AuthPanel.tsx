@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { sanitizeReturnTo } from "@/lib/return-path";
+import { useAuth } from "@/lib/auth-context";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MONTHS = [
@@ -22,6 +23,7 @@ export default function AuthPanel({
 }) {
   const supabase = useMemo(() => createClient(), []);
   const router = useRouter();
+  const { user } = useAuth();
   const returnTo = sanitizeReturnTo(rawReturnTo);
 
   const [tab, setTab] = useState<Tab>(initialView === "about" ? "about" : "signin");
@@ -52,6 +54,20 @@ export default function AuthPanel({
   const [gender, setGender] = useState("");
 
   const finish = () => router.push(returnTo);
+
+  // Safety net for the plain sign-in tab specifically: if the shared auth
+  // context ever reports a user while this tab is still showing (e.g. a
+  // cross-tab sign-in synced in, or any other path that authenticates
+  // without this component's own finish() call running), leave the page
+  // rather than sitting on a stale "Welcome back" form while the nav
+  // already shows signed in. Scoped to "signin" only — signup/about/
+  // check-email each manage their own transition already and must not be
+  // short-circuited here (a signup mid "about you" step must not get
+  // yanked away just because it's authenticated).
+  useEffect(() => {
+    if (user && tab === "signin") finish();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, tab]);
 
   const saveAbout = async (skip: boolean) => {
     if (!skip) {

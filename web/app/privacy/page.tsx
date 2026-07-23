@@ -1,9 +1,10 @@
 import Footer from "@/app/components/Footer";
 
 export const metadata = {
-  title: "Privacy Policy — Poषण",
+  title: "Privacy Policy",
   description:
     "What Poषण collects, why, and the control you keep over your personal data.",
+  alternates: { canonical: "/privacy" },
 };
 
 export default function PrivacyPage() {

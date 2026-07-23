@@ -4,7 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { isAdminEmail } from "@/lib/admin";
 import AdminNav from "./AdminNav";
 
-export const metadata = { title: "Admin — Poषण" };
+// Admin routes have zero public search value and show account-specific
+// data — excluded from the index here and in web/app/robots.ts's Disallow
+// list (two independent mechanisms, same reasoning as /cart, /checkout).
+//
+// Owns its own title template (nearest-parent-template wins, so this
+// takes over from the root layout's for everything under /admin) so each
+// admin page can set a plain segment name ("Dashboard", "Orders") instead
+// of manually spelling out "— Admin — Poषण" on every one of them.
+export const metadata = {
+  title: { default: "Admin", template: "%s — Admin — Poषण" },
+  robots: { index: false, follow: false },
+};
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();

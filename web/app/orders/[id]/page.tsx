@@ -3,6 +3,14 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchVariantsByIds } from "@/lib/products";
 
+// Account-specific order data, gated behind auth (see proxy.ts's
+// PROTECTED_PREFIXES) — zero public search value, same reasoning as
+// /admin, /cart, /checkout.
+export const metadata = {
+  title: "Order confirmation",
+  robots: { index: false, follow: false },
+};
+
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
 const ORDER_DATE_FMT = new Intl.DateTimeFormat("en-GB", {

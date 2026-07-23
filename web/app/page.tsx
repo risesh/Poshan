@@ -4,6 +4,18 @@ import ProductsSection from "./components/ProductsSection";
 import { createClient } from "@/lib/supabase/server";
 import { getAllProducts } from "@/lib/products";
 
+// No title override — the root layout's default ("Poषण — foods that
+// heal") is already the right title for the homepage itself; setting a
+// string here would just have the title template append " — Poषण" a
+// second time. The description is homepage-specific (mentions actual
+// products) rather than the more general brand statement the root layout
+// description falls back to for pages that don't set their own.
+export const metadata = {
+  description:
+    "Shop Poषण's small-batch, Ayurvedic-rooted foods — probiotic kefir, lacto-fermented pickles, and traditional millet treats. Clean ingredients, traditional methods, no exaggerated health claims.",
+  alternates: { canonical: "/" },
+};
+
 export default async function Home() {
   const supabase = await createClient();
   const products = await getAllProducts(supabase);
@@ -44,7 +56,7 @@ export default async function Home() {
         <span className="trust__dot">·</span>
         <span className="trust__item">No Exaggerated Claims</span>
         <span className="trust__dot">·</span>
-        <span className="trust__item">Traditional Formulations</span>
+        <span className="trust__item">No Ultra-processed Foods</span>
       </div>
 
       <ProductsSection products={products} />

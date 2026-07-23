@@ -3,7 +3,7 @@ import { getOrderList } from "@/lib/admin-data";
 import OrdersFilterBar from "./OrdersFilterBar";
 import OrderStatusSelect from "./OrderStatusSelect";
 
-export const metadata = { title: "Orders — Admin — Poषण" };
+export const metadata = { title: "Orders" };
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });

@@ -8,7 +8,7 @@ import {
 } from "@/lib/admin-data";
 import AdminCharts from "./AdminCharts";
 
-export const metadata = { title: "Dashboard — Admin — Poषण" };
+export const metadata = { title: "Dashboard" };
 
 function startOfMonth(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), 1);

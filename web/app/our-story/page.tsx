@@ -1,9 +1,10 @@
 import Footer from "@/app/components/Footer";
 
 export const metadata = {
-  title: "Our story — Poषण",
+  title: "Our story",
   description:
     "Why Poषण began, how we make our food, and what we believe — foods that heal, made in small batches with no exaggerated claims.",
+  alternates: { canonical: "/our-story" },
 };
 
 export default function OurStoryPage() {

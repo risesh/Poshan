@@ -3,9 +3,12 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import Footer from "@/app/components/Footer";
 
+// Account-specific order history, gated behind auth — same reasoning as
+// orders/[id]/page.tsx.
 export const metadata = {
-  title: "Past orders — Poषण",
+  title: "Past orders",
   description: "Your Poषण order history.",
+  robots: { index: false, follow: false },
 };
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
