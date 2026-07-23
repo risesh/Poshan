@@ -118,12 +118,12 @@ previews, image search, AI citation). Prerequisites for §2 and §3.*
   `images.remotePatterns` to `web/next.config.ts` if photos end up remote-hosted.
   Sequence once real photography lands.
 
-- [ ] **1.9 — Add a proper app icon/manifest**
+- [x] **1.9 — Add a proper app icon/manifest**
   *In plain terms*: minor polish — browser-tab icon, "add to home screen" support.
   *Technical*: new `web/app/manifest.ts` with colors from `app/tokens.css`; a proper
   `apple-icon.png` (180×180) — check `logo-icon.png`'s native resolution first.
 
-- [ ] **1.10 — General config housekeeping**
+- [x] **1.10 — General config housekeeping**
   *In plain terms*: a placeholder for future needs, not an action today.
   *Technical*: `web/next.config.ts` is currently empty — home for
   `images.remotePatterns` (1.8) and future `redirects()`/`headers()`.
@@ -192,7 +192,7 @@ on §1.1. Verify each block with Google's Rich Results Test.*
 targets showing up as a citation/recommendation inside an AI system's answer (ChatGPT,
 Claude, Perplexity, Google AI Overviews) — newer, less standardized.*
 
-- [ ] **3.1 — Explicitly welcome AI crawlers**
+- [x] **3.1 — Explicitly welcome AI crawlers**
   *In plain terms*: a second pass on the robots file naming specific AI crawlers and
   explicitly allowing them — some sites block these by default, which works against
   being cited.
