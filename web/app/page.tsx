@@ -56,7 +56,7 @@ export default async function Home() {
         <span className="trust__dot">·</span>
         <span className="trust__item">No Exaggerated Claims</span>
         <span className="trust__dot">·</span>
-        <span className="trust__item">No Ultra-processed Foods</span>
+        <span className="trust__item">No Ultra-Processed Foods</span>
       </div>
 
       <ProductsSection products={products} />

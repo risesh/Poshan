@@ -38,6 +38,22 @@ export const metadata: Metadata = {
   },
   description:
     "Poषण — clean, sophisticated healthy foods rooted in Ayurvedic tradition. No ultra-processed foods, small batch, no exaggerated claims.",
+  // og:image/twitter:image come from app/opengraph-image.tsx automatically
+  // — no images field needed here.
+  openGraph: {
+    type: "website",
+    siteName: "Poषण",
+    title: "Poषण — foods that heal",
+    description:
+      "Poषण — clean, sophisticated healthy foods rooted in Ayurvedic tradition. No ultra-processed foods, small batch, no exaggerated claims.",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Poषण — foods that heal",
+    description:
+      "Poषण — clean, sophisticated healthy foods rooted in Ayurvedic tradition. No ultra-processed foods, small batch, no exaggerated claims.",
+  },
 };
 
 export default function RootLayout({

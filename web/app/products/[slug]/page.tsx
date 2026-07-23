@@ -101,6 +101,18 @@ export async function generateMetadata(props: PageProps<"/products/[slug]">) {
     title: product.name,
     description: `${product.name} — ${product.description}`,
     alternates: { canonical: `/products/${slug}` },
+    // og:image/twitter:image come from opengraph-image.tsx in this same
+    // route segment automatically — no images field needed here.
+    openGraph: {
+      type: "website",
+      title: product.name,
+      description: `${product.name} — ${product.description}`,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: product.name,
+      description: `${product.name} — ${product.description}`,
+    },
   };
 }
 

@@ -101,7 +101,7 @@ previews, image search, AI citation). Prerequisites for §2 and §3.*
   *Technical*: `alternates.canonical` on each page's metadata, especially
   `web/app/products/[slug]/page.tsx` and the homepage.
 
-- [ ] **1.7 — Make links to the site look good when shared**
+- [x] **1.7 — Make links to the site look good when shared**
   *In plain terms*: pasting a Poषण link into WhatsApp/iMessage/Twitter should show a
   preview card (image + title + description), not bare text.
   *Technical*: add `openGraph`/`twitter` fields (`layout.tsx`, `products/[slug]`). New
@@ -202,7 +202,7 @@ Claude, Perplexity, Google AI Overviews) — newer, less standardized.*
   `Google-Extended`; `CCBot`; `Bytespider`, `Amazonbot`, `Applebot-Extended`. All
   allowed on the same public paths as 1.4's general rule.
 
-- [ ] **3.2 — Add an "for AI" summary file (`llms.txt`)**
+- [x] **3.2 — Add an "for AI" summary file (`llms.txt`)** — minimal version; add a Recipes/Guides section once §4.1's `/explore` route ships
   *In plain terms*: an emerging, informal convention — a short curated brand summary +
   key links for AI systems, instead of making them piece it together from a full crawl.
   Cheap, unproven, near-zero downside.
