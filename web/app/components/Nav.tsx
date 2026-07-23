@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
@@ -14,6 +14,7 @@ export default function Nav() {
   const { total } = useCart();
   const { user, signOut } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
   // Every page shows a "Products" link back to the homepage's product
   // grid except the homepage itself, which has that grid inline already.
   const showProductsLink = pathname !== "/";
@@ -69,7 +70,14 @@ export default function Nav() {
                   Admin
                 </Link>
               )}
-              <button type="button" className="nav__signin" onClick={() => signOut()}>
+              <button
+                type="button"
+                className="nav__signin"
+                onClick={async () => {
+                  await signOut();
+                  router.push("/");
+                }}
+              >
                 Sign out
               </button>
               <span className="nav__avatar" aria-hidden="true">
