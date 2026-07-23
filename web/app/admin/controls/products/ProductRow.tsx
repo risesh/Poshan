@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { AdminProduct, AdminProductVariant } from "@/lib/admin-data";
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
@@ -87,11 +88,14 @@ function VariantRow({
   );
 }
 
-export default function ProductRow({ product }: { product: AdminProduct }) {
+export default function ProductRow({ product, onEdit }: { product: AdminProduct; onEdit: () => void }) {
+  const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [isInStock, setIsInStock] = useState(product.isInStock);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleted, setDeleted] = useState(false);
 
   // Lives here, not inside VariantRow, so it (a) survives the row
   // unmounting on collapse/expand — previously each toggle silently
@@ -151,6 +155,25 @@ export default function ProductRow({ product }: { product: AdminProduct }) {
     }
   };
 
+  const onDelete = async () => {
+    if (!window.confirm(`Delete ${product.name}? This can't be undone.`)) return;
+    setDeleting(true);
+    setError(null);
+    const res = await fetch(`/api/admin/products/${product.id}`, { method: "DELETE" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setDeleting(false);
+      setError(json.error ?? "Could not delete.");
+      return;
+    }
+    // Optimistic — hide the row immediately rather than waiting on the
+    // server-refetched list from router.refresh() to drop it.
+    setDeleted(true);
+    router.refresh();
+  };
+
+  if (deleted) return null;
+
   return (
     <div className="admin-controls-product-row">
       <div
@@ -182,6 +205,20 @@ export default function ProductRow({ product }: { product: AdminProduct }) {
           {purchasableCount} of {product.variants.length} size{product.variants.length === 1 ? "" : "s"} in stock
           {noneAvailableDespiteEnabled && " — hidden on site"}
         </span>
+        <div className="admin-controls-row__actions" onClick={(e) => e.stopPropagation()}>
+          <button type="button" className="admin-controls-edit-btn" onClick={onEdit} disabled={deleting}>
+            Edit
+          </button>
+          <button
+            type="button"
+            className="admin-controls-remove-btn"
+            aria-label={`Delete ${product.name}`}
+            disabled={deleting}
+            onClick={onDelete}
+          >
+            ×
+          </button>
+        </div>
       </div>
       {error && <div className="admin-status-select__error">{error}</div>}
       {expanded && (

@@ -245,6 +245,37 @@ export type AdminProduct = {
   category: string;
   isInStock: boolean; // raw products.is_instock master toggle
   variants: AdminProductVariant[];
+  // Full descriptive fields — the list view only used the fields above,
+  // but editing a product needs everything NewProductForm's create path
+  // already collects, so the edit form can be pre-filled from this same
+  // object rather than a second, edit-specific fetch.
+  badge: string | null;
+  badgeStyle: "dark" | "light" | null;
+  shortDescription: string;
+  description: string;
+  attributes: string[];
+  gradient: "amla" | "turmeric" | null;
+  imageUrl: string | null;
+  tabCategories: string[];
+  descriptionBullets: string[];
+  detailAttrs: string[];
+  usageBullets: string[];
+  vegetarian: boolean;
+  ingredients: string;
+  netQuantity: string;
+  storage: string;
+  shelfLife: string;
+  cartBadge: string;
+  thumbGradient: string;
+  thumbNameLines: string[];
+  thumbNameSize: string;
+  // Stored per-variant in the DB (see 0005_product_catalog_fields.sql's
+  // migration note) but only ever populated on the primary (sort_order 0)
+  // variant — surfaced at the product level here to match how the create
+  // form and the storefront (lib/products.ts's mapRowToProduct) both treat
+  // it as one product-level fact, not a per-size one.
+  nutritionBasis: string;
+  nutritionRows: [string, string][];
 };
 
 // Unlike lib/products.ts's getAllProducts (storefront-shaped: folds
@@ -255,11 +286,15 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, slug, name, category, is_instock, product_variants ( id, size_label, sku, price_rupees, stock_quantity, is_instock, unit_label, sort_order )"
+      "id, slug, name, category, is_instock, badge, badge_style, short_description, description, attributes, " +
+        "gradient, image_url, tab_categories, description_bullets, detail_attrs, usage_bullets, vegetarian, " +
+        "ingredients, net_quantity, storage, shelf_life, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size, " +
+        "product_variants ( id, size_label, sku, price_rupees, stock_quantity, is_instock, unit_label, sort_order, nutrition )"
     )
     .order("created_at");
   if (error) throw error;
 
+  type NutritionJson = { basis?: string; rows?: [string, string][] };
   type VariantRow = {
     id: string;
     size_label: string;
@@ -269,6 +304,7 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
     is_instock: boolean;
     unit_label: string;
     sort_order: number;
+    nutrition: NutritionJson | null;
   };
   type Row = {
     id: string;
@@ -276,18 +312,41 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
     name: string;
     category: string;
     is_instock: boolean;
+    badge: string | null;
+    badge_style: "dark" | "light" | null;
+    short_description: string;
+    description: string | null;
+    attributes: string[];
+    gradient: "amla" | "turmeric" | null;
+    image_url: string | null;
+    tab_categories: string[];
+    description_bullets: string[];
+    detail_attrs: string[];
+    usage_bullets: string[];
+    vegetarian: boolean;
+    ingredients: string;
+    net_quantity: string;
+    storage: string;
+    shelf_life: string;
+    cart_badge: string;
+    thumb_gradient: string;
+    thumb_name_lines: string[];
+    thumb_name_size: string;
     product_variants: VariantRow[];
   };
 
-  return ((data ?? []) as unknown as Row[]).map((row) => ({
-    id: row.id,
-    slug: row.slug,
-    name: row.name,
-    category: row.category,
-    isInStock: row.is_instock,
-    variants: [...row.product_variants]
-      .sort((a, b) => a.sort_order - b.sort_order || a.size_label.localeCompare(b.size_label))
-      .map((v) => ({
+  return ((data ?? []) as unknown as Row[]).map((row) => {
+    const sortedVariants = [...row.product_variants].sort(
+      (a, b) => a.sort_order - b.sort_order || a.size_label.localeCompare(b.size_label)
+    );
+    const nutrition = sortedVariants[0]?.nutrition ?? {};
+    return {
+      id: row.id,
+      slug: row.slug,
+      name: row.name,
+      category: row.category,
+      isInStock: row.is_instock,
+      variants: sortedVariants.map((v) => ({
         id: v.id,
         sizeLabel: v.size_label,
         sku: v.sku,
@@ -296,7 +355,30 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
         isInStock: v.is_instock,
         unitLabel: v.unit_label,
       })),
-  }));
+      badge: row.badge,
+      badgeStyle: row.badge_style,
+      shortDescription: row.short_description,
+      description: row.description ?? "",
+      attributes: row.attributes,
+      gradient: row.gradient,
+      imageUrl: row.image_url,
+      tabCategories: row.tab_categories,
+      descriptionBullets: row.description_bullets,
+      detailAttrs: row.detail_attrs,
+      usageBullets: row.usage_bullets,
+      vegetarian: row.vegetarian,
+      ingredients: row.ingredients,
+      netQuantity: row.net_quantity,
+      storage: row.storage,
+      shelfLife: row.shelf_life,
+      cartBadge: row.cart_badge,
+      thumbGradient: row.thumb_gradient,
+      thumbNameLines: row.thumb_name_lines,
+      thumbNameSize: row.thumb_name_size,
+      nutritionBasis: nutrition.basis ?? "",
+      nutritionRows: nutrition.rows ?? [],
+    };
+  });
 }
 
 export type AdminPromoCode = {

@@ -1,8 +1,10 @@
 "use client";
 
-// Shared field set for both the create form (NewPromoCodeForm) and the
-// inline edit form (PromoCodeRow) — same shape either way, just seeded
-// from an empty form vs. an existing promo code's current values.
+import type { AdminPromoCode } from "@/lib/admin-data";
+
+// Shared field set for both create and edit modes of PromoCodeForm — same
+// shape either way, just seeded from an empty form vs. an existing promo
+// code's current values (see promoToFormValue below).
 export type PromoCodeFormValue = {
   code: string;
   discountType: "flat" | "percent";
@@ -28,6 +30,30 @@ export const emptyPromoCodeForm = (): PromoCodeFormValue => ({
   scopeMode: "all",
   selectedProductIds: [],
 });
+
+// <input type="date"> wants YYYY-MM-DD. Submitting round-trips a date
+// through new Date(startsAt).toISOString(), i.e. midnight UTC on that
+// calendar date — slicing the ISO string back to its date component here
+// (rather than formatting in local time) undoes that symmetrically instead
+// of drifting a day depending on the admin's timezone.
+function toDateInputValue(iso: string | null): string {
+  return iso ? iso.slice(0, 10) : "";
+}
+
+// Pre-fills the edit form from an existing promo code — the inverse of
+// the submit-time serialization in PromoCodeForm.tsx.
+export function promoToFormValue(promo: AdminPromoCode): PromoCodeFormValue {
+  return {
+    code: promo.code,
+    discountType: promo.discount_type,
+    discountValue: String(promo.discount_value),
+    minOrderRupees: String(promo.min_order_rupees),
+    startsAt: toDateInputValue(promo.starts_at),
+    expiresAt: toDateInputValue(promo.expires_at),
+    scopeMode: promo.scopedProducts.length > 0 ? "specific" : "all",
+    selectedProductIds: promo.scopedProducts.map((p) => p.id),
+  };
+}
 
 export default function PromoCodeFields({
   value,

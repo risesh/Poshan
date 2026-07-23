@@ -2161,8 +2161,8 @@ a { color: inherit; }
 
 .auth-progress {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 2px;
   margin-bottom: 28px;
 }
 
@@ -2205,8 +2205,9 @@ a { color: inherit; }
 }
 
 .auth-progress__line {
-  flex: 1;
-  height: 1px;
+  width: 1px;
+  height: 14px;
+  margin-left: 10.5px;
   background: var(--border-color);
 }
 
@@ -3210,6 +3211,21 @@ a { color: inherit; }
 
 .admin-topbar__back:hover { color: var(--color-bone); }
 
+/* Title + tabs + back link is one unwrapped flex row (admin-topbar__inner)
+   sized for desktop widths — on narrow viewports it overflows and pushes
+   "Back to site" off-screen since nothing here scrolls or wraps by
+   default. Wrap onto a second row so the tabs (the widest, least critical
+   piece) drop below while title/back stay on row one. */
+@media (max-width: 640px) {
+  .admin-topbar__inner {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 12px var(--gutter);
+    row-gap: 10px;
+  }
+  .admin-tabs { order: 1; width: 100%; overflow-x: auto; }
+}
+
 .admin-content { max-width: 1200px; margin: 0 auto; padding: 32px var(--gutter) 96px; }
 
 .admin-page__title {
@@ -3566,6 +3582,21 @@ a { color: inherit; }
 
 .admin-controls-card { margin-bottom: 32px; }
 
+/* Scoped to Controls only (not .admin-card__title globally, which
+   Dashboard/Orders also use) — 13.2px * 1.2. */
+.admin-controls-card .admin-card__title { font-size: 15.84px; }
+
+/* Marks the boundary between the toggles/list section and the add/edit
+   form section — the two are already separate bordered cards, but this
+   makes the split unmistakable rather than reading as one continuous list.
+   Same rgba(30, 58, 52, 0.48) as the form-field borders (.admin-filter-bar__input)
+   — the first attempt at 0.2 opacity was too faint to actually read as a divider. */
+.admin-controls-divider {
+  height: 1px;
+  background: rgba(30, 58, 52, 0.48);
+  margin: 0 0 32px;
+}
+
 /* A small pill switch — the shared enable/disable control for products,
    variants, and promo codes, styled from scratch since no toggle/switch
    pattern exists elsewhere in the site yet. */
@@ -3606,7 +3637,7 @@ a { color: inherit; }
 
 .admin-controls-table__head {
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr 1fr;
+  grid-template-columns: 2fr 1fr 0.6fr 1fr auto;
   gap: 12px;
   padding: 0 0 10px;
   border-bottom: 1px solid var(--border-color);
@@ -3634,7 +3665,9 @@ a { color: inherit; }
 
 .admin-controls-promo-code { font-family: var(--font-mono); letter-spacing: 0.04em; }
 
-.admin-controls-promo-row__actions {
+/* Shared by both ProductRow and PromoCodeRow — a row's toggle/edit/delete
+   cluster, not promo-specific despite the fields it started on. */
+.admin-controls-row__actions {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3643,7 +3676,7 @@ a { color: inherit; }
 
 .admin-controls-edit-btn {
   background: none;
-  border: 1px solid var(--border-color);
+  border: 1px solid rgba(30, 58, 52, 0.48);
   border-radius: var(--radius-button);
   padding: 4px 10px;
   font-family: var(--font-display);
@@ -3671,15 +3704,6 @@ a { color: inherit; }
 .admin-controls-cancel-btn:hover { color: var(--color-ink); }
 .admin-controls-cancel-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-.admin-controls-promo-edit {
-  max-width: none;
-  padding: 16px;
-  margin: 8px 0;
-  background: var(--color-bone);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-button);
-}
-
 .admin-controls-product-row { border-bottom: 1px solid var(--border-color); padding: 10px 0; }
 
 /* The whole row toggles expand/collapse now, not just the product name —
@@ -3688,7 +3712,7 @@ a { color: inherit; }
    clickable anywhere, not just on the name text. */
 .admin-controls-product-row__main {
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr 1fr;
+  grid-template-columns: 2fr 1fr 0.6fr 1fr auto;
   align-items: center;
   gap: 12px;
   cursor: pointer;
