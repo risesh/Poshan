@@ -3,7 +3,14 @@
 // on the admin-readable tables); this constant only gates page/nav
 // visibility, so a mismatch here fails safe (hides the page) rather than
 // unsafe (a wrong email here can't grant DB access it doesn't have via RLS).
-export const ADMIN_EMAILS = ["riseshbhutani@gmail.com", "bharathandu142@gmail.com"];
+// test-admin@poshan.test is a standing test account for agent/local admin
+// testing (credentials in .env.local) — kept in sync with
+// 0012_test_admin_account.sql's matching RLS grant. Not a real admin.
+export const ADMIN_EMAILS = [
+  "riseshbhutani@gmail.com",
+  "bharathandu142@gmail.com",
+  "test-admin@poshan.test",
+];
 
 export function isAdminEmail(email: string | null | undefined): boolean {
   return !!email && ADMIN_EMAILS.includes(email);
