@@ -6,14 +6,14 @@ Poषण makes fermented and traditional foods: probiotic kefir, lacto-fermented
 
 ## Products
 
-- [All products](https://www.poshan.example/#products): The current catalog of Poषण's small-batch foods, with ingredients, storage, and nutrition facts per product.
+- [All products](https://www.poshan.life/#products): The current catalog of Poषण's small-batch foods, with ingredients, storage, and nutrition facts per product.
 
 ## About
 
-- [Our story](https://www.poshan.example/our-story): Why Poषण began, how the food is made, and the brand's stated principles.
+- [Our story](https://www.poshan.life/our-story): Why Poषण began, how the food is made, and the brand's stated principles.
 
 ## Policies
 
-- [Shipping & returns](https://www.poshan.example/shipping)
-- [Terms & conditions](https://www.poshan.example/terms)
-- [Privacy policy](https://www.poshan.example/privacy)
+- [Shipping & returns](https://www.poshan.life/shipping)
+- [Terms & conditions](https://www.poshan.life/terms)
+- [Privacy policy](https://www.poshan.life/privacy)

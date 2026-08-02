@@ -17,9 +17,9 @@ search/AI-answer demand for that phrasing is real and worth addressing honestly 
 those limits.
 
 **Decisions already made:**
-- **Domain**: not yet registered. Use placeholder `https://www.poshan.example`
-  everywhere a domain is needed, routed through a single `NEXT_PUBLIC_SITE_URL` env var
-  so swapping in the real domain later is a one-line change, not a multi-file search.
+- **Domain**: registered — `www.poshan.life`. `NEXT_PUBLIC_SITE_URL` in `.env.local`/
+  `.env.example` and `web/public/llms.txt`'s hardcoded links (the one spot that can't
+  read the env var, being a static file) were updated to match once the domain existed.
 - **AI crawlers**: allow all of them (GPTBot, ClaudeBot, PerplexityBot, Google-Extended,
   CCBot, etc.) on public content — maximize citation/recommendation surface area, accept
   that some also train on the content.
@@ -34,8 +34,6 @@ those limits.
   products today, so `ProductCard`/`ProductHero` render CSS gradient fallbacks, not
   photos. Items gated on real photos (OG images, `Product.image` JSON-LD, Image Search)
   each specify a photo-less fallback so they're not fully blocked.
-- `web/app/favicon.ico` exists (real 16×16/32×32 ICO) but it's unverified whether it's a
-  genuine Poषण icon or a leftover Next.js default — worth a 10-second visual check.
 - No social media accounts found referenced anywhere in the codebase — if any exist,
   they should feed `Organization` schema's `sameAs` field (§2.2); flagged as open.
 
