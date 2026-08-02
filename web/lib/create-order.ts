@@ -3,6 +3,7 @@ import { computeOrderTotals, generateOrderNumber, estimatedDeliveryDate, MIN_ORD
 import { lookupPromoCode } from "./promo";
 import { fetchVariantsByIds } from "./products";
 import { getAddressCoordinates, distanceFromFulfillmentCenterKm } from "./shipping";
+import { notifyAdminsOfNewOrder } from "./notify-admins";
 
 type PaymentInfo =
   | { method: "cod" }
@@ -99,6 +100,13 @@ export async function createOrder(
   );
 
   if (itemsError) throw itemsError;
+
+  // Best-effort — see notify-admins.ts, this can never throw/break checkout.
+  await notifyAdminsOfNewOrder({
+    orderNumber,
+    totalRupees: totals.totalRupees,
+    paymentMethod: payment.method,
+  });
 
   return { orderId, orderNumber };
 }

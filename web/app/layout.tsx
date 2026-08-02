@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Nav from "./components/Nav";
 import JsonLd from "./components/JsonLd";
+import NewOrderListener from "./components/NewOrderListener";
 import { CartProvider } from "@/lib/cart-context";
 import { AuthProvider } from "@/lib/auth-context";
 
@@ -82,6 +83,7 @@ export default function RootLayout({
             <Nav />
             {children}
           </CartProvider>
+          <NewOrderListener />
         </AuthProvider>
       </body>
     </html>

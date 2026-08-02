@@ -3965,3 +3965,47 @@ a { color: inherit; }
     gap: 4px;
   }
 }
+
+.admin-toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--color-bone);
+  color: var(--color-sindoor);
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: var(--radius-card);
+  box-shadow: 0 6px 20px rgba(30, 58, 52, 0.14);
+  max-width: 320px;
+}
+
+.admin-toast__title {
+  font-family: var(--font-display);
+  font-size: 15px;
+  color: var(--color-sindoor);
+}
+
+.admin-toast__amount {
+  font-family: var(--font-mono);
+  color: var(--color-sindoor);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.admin-toast__close {
+  background: none;
+  border: none;
+  color: var(--color-sindoor);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 0;
+}
+
+.admin-toast__close:hover { opacity: 1; }
