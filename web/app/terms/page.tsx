@@ -20,12 +20,10 @@ export default function TermsPage() {
 
       <section className="policy-content">
         <div className="policy-content__inner">
-          {/* FSSAI Registration No. is still pending — fill in once issued. */}
           <h2>Who we are</h2>
           <p>
             Poषण is operated by Poshan Life LLP, with its principal place of business
-            at Building 282, Lotus Nest, S-1, 2nd floor, sector 3, HSR layout. FSSAI
-            Registration No: [ADD ONCE ISSUED].
+            at Building 282, Lotus Nest, S-1, 2nd floor, sector 3, HSR layout.
           </p>
 
           <h2>Agreement</h2>
