@@ -139,25 +139,20 @@ export async function getPlaceDetails(placeId: string, sessionToken: string): Pr
   // gave us; it's messier (it also contains locality/city text Google
   // couldn't cleanly separate out), but the field stays user-editable, so a
   // messy-but-real fallback beats an empty field forcing a full retype.
+  // Deliberately NOT falling back further to premise/displayName (e.g. an
+  // apartment complex's name, "Lotus Nest") for either flatNo or
+  // streetName — that's a building name, not a flat number or a street,
+  // and stuffing it into both fields produced exactly that wrong pairing.
+  // formattedAddress (shown read-only above the form) already surfaces it;
+  // an empty field here is a truthful "Google didn't give us this," left
+  // for the user to fill in rather than a guess presented as data.
   const untypedFallback = components.find((c) => !c.types || c.types.length === 0)?.longText;
-  const streetNameComposed = [streetNumber, route].filter(Boolean).join(" ") || untypedFallback || "";
-  const placeName = data.displayName?.text as string | undefined;
-  // A POI selection (a shop, a landmark) has a display name distinct from
-  // its street address — lead the street field with that name so the
-  // saved address stays recognizable, the way picking a place on Google
-  // Maps would show it. Every field here stays user-editable after this
-  // either way (see addresses table comment in
-  // supabase/migrations/0001_init.sql) — this is a starting point, not a
-  // strict parse.
-  const streetName =
-    placeName && placeName !== streetNameComposed
-      ? [placeName, streetNameComposed].filter(Boolean).join(", ")
-      : streetNameComposed;
+  const streetName = [streetNumber, route].filter(Boolean).join(" ") || untypedFallback || "";
 
   return {
     placeId: data.id as string,
     formattedAddress: (data.formattedAddress as string) ?? "",
-    flatNo: [subpremise, premise].filter(Boolean).join(", "),
+    flatNo: subpremise ?? "",
     streetName,
     area: sublocality ?? "",
     city:

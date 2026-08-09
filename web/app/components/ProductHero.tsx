@@ -1,8 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useCart } from "@/lib/cart-context";
-import type { Product } from "@/lib/products";
+import type { Product, Variant } from "@/lib/products";
+
+// size_label is free text ("500 ml" | "1 L" | "250 g" | "1 kg" — see
+// supabase/migrations/0001_init.sql) with no separate numeric column, so
+// comparing variants on a per-unit basis means parsing it. Unrecognized
+// formats return null rather than guessing, and get excluded from the
+// savings comparison below instead of showing a wrong percentage.
+function parseSizeToBaseUnit(sizeLabel: string): { value: number; unit: "ml" | "g" } | null {
+  const match = sizeLabel.trim().match(/^([\d.]+)\s*(ml|l|g|kg)$/i);
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  const unit = match[2].toLowerCase();
+  if (unit === "l") return { value: value * 1000, unit: "ml" };
+  if (unit === "kg") return { value: value * 1000, unit: "g" };
+  return { value, unit: unit as "ml" | "g" };
+}
+
+// % cheaper per unit than the product's lowest-priced variant — e.g. a
+// 500 ml jar at ₹250 (₹0.50/ml) vs. a 1 L jar at ₹450 (₹0.45/ml) is 10%
+// cheaper per ml. Only computed against that one baseline (not every
+// pair), and only when both sizes parse into the same base unit; a
+// variant that isn't actually cheaper per unit gets no tag rather than a
+// negative one.
+function perUnitSavingsPercent(variant: Variant, baseline: Variant): number | null {
+  if (variant.id === baseline.id) return null;
+  const variantSize = parseSizeToBaseUnit(variant.size);
+  const baselineSize = parseSizeToBaseUnit(baseline.size);
+  if (!variantSize || !baselineSize || variantSize.unit !== baselineSize.unit) return null;
+  const baselineRate = baseline.priceRupees / baselineSize.value;
+  const variantRate = variant.priceRupees / variantSize.value;
+  if (variantRate >= baselineRate) return null;
+  const percent = Math.round(((baselineRate - variantRate) / baselineRate) * 100);
+  return percent > 0 ? percent : null;
+}
 
 export default function ProductHero({ product }: { product: Product }) {
   // Defaults to the same variant the product card already committed to
@@ -14,6 +47,14 @@ export default function ProductHero({ product }: { product: Product }) {
   );
   const { cart, addItem, incrementItem, decrementItem } = useCart();
   const qty = cart[selected.id] || 0;
+
+  // The "lowest variant" per-unit rate every other size's tag is measured
+  // against — the one with the lowest absolute price, per the product's
+  // own listed order rather than assumed to be the smallest size.
+  const lowestPriceVariant = useMemo(
+    () => product.variants.reduce((min, v) => (v.priceRupees < min.priceRupees ? v : min), product.variants[0]),
+    [product.variants]
+  );
 
   const imageStyle = product.image
     ? {
@@ -64,18 +105,24 @@ export default function ProductHero({ product }: { product: Product }) {
             <div className="product-info__size-label">Size</div>
             {product.variants.length > 1 && (
               <div className="product-info__size-options">
-                {product.variants.map((variant) => (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    className={`product-info__size-btn${variant.id === selected.id ? " is-active" : ""}${!variant.isInStock ? " product-info__size-btn--disabled" : ""}`}
-                    aria-disabled={!variant.isInStock}
-                    onClick={() => setSelected(variant)}
-                  >
-                    {variant.size}
-                    {!variant.isInStock && <span className="product-info__size-btn__note">Out of stock</span>}
-                  </button>
-                ))}
+                {product.variants.map((variant) => {
+                  const savingsPercent = perUnitSavingsPercent(variant, lowestPriceVariant);
+                  return (
+                    <button
+                      key={variant.id}
+                      type="button"
+                      className={`product-info__size-btn${variant.id === selected.id ? " is-active" : ""}${!variant.isInStock ? " product-info__size-btn--disabled" : ""}`}
+                      aria-disabled={!variant.isInStock}
+                      onClick={() => setSelected(variant)}
+                    >
+                      {savingsPercent !== null && (
+                        <span className="product-info__size-btn__discount">{savingsPercent}% off</span>
+                      )}
+                      {variant.size}
+                      {!variant.isInStock && <span className="product-info__size-btn__note">Out of stock</span>}
+                    </button>
+                  );
+                })}
               </div>
             )}
             <div className="product-info__price-row">

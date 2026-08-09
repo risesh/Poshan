@@ -307,6 +307,117 @@ export default function CheckoutBody({
     router.refresh();
   };
 
+  const [addAddressError, setAddAddressError] = useState<string | null>(null);
+  const [addingAddress, setAddingAddress] = useState(false);
+
+  // Saves the new-address form as a real address immediately, rather than
+  // only ever inserting one as a side effect of placing an order (the old
+  // behavior, still there in placeOrder below as a fallback for anyone who
+  // reaches Place order without clicking this). Requires either a Google
+  // autocomplete pick or every core field filled by hand, plus a phone
+  // number — same floor placeOrder already enforced, just checkable
+  // before checkout rather than only at submit time.
+  const addNewAddress = async () => {
+    setAddAddressError(null);
+
+    const effRecipientName = recipientNameRef.current?.value ?? recipientName;
+    const effRecipientPhoneDigits = localPhoneDigits(recipientPhoneRef.current?.value ?? recipientPhone);
+    const effRecipientPhone = effRecipientPhoneDigits ? `+91 ${effRecipientPhoneDigits}` : "";
+    const effFlatNo = flatNoRef.current?.value ?? flatNo;
+    const effStreetName = streetNameRef.current?.value ?? streetName;
+    const effArea = areaRef.current?.value ?? area;
+    const effLine2 = line2Ref.current?.value ?? line2;
+    const effCity = cityRef.current?.value ?? city;
+    const effState = stateRef.current?.value ?? stateVal;
+    const effPostalCode = postalCodeRef.current?.value ?? postalCode;
+
+    if (!effRecipientName.trim()) {
+      setAddAddressError("Please enter the recipient's full name.");
+      return;
+    }
+    if (effRecipientPhoneDigits.length !== 10) {
+      setAddAddressError("Please enter a valid 10-digit phone number.");
+      return;
+    }
+    const hasManualAddress =
+      effFlatNo.trim() &&
+      effStreetName.trim() &&
+      effArea.trim() &&
+      effCity.trim() &&
+      effState.trim() &&
+      effPostalCode.trim();
+    if (!addressSelected && !hasManualAddress) {
+      setAddAddressError(
+        "Please select an address from the search results, or fill in flat/house no., street, area, city, state and pincode."
+      );
+      return;
+    }
+    if (lat == null || lng == null) {
+      setAddAddressError("Please search and select your address so we can confirm the delivery location.");
+      return;
+    }
+
+    setAddingAddress(true);
+    const line1 = [effFlatNo.trim(), effStreetName.trim(), effArea.trim()].filter(Boolean).join(", ");
+    const { data, error: insertError } = await supabase
+      .from("addresses")
+      .insert({
+        user_id: user!.id,
+        label: "Home",
+        recipient_name: effRecipientName.trim(),
+        recipient_phone: effRecipientPhone.trim(),
+        line1,
+        line2: effLine2.trim() || null,
+        city: effCity.trim(),
+        state: effState.trim(),
+        postal_code: effPostalCode.trim(),
+        is_default: addressList.length === 0,
+        lat,
+        lng,
+        formatted_address: formattedAddress,
+        google_place_id: googlePlaceId,
+        street_number: googleComponents?.streetNumber ?? null,
+        route: googleComponents?.route ?? null,
+        subpremise: googleComponents?.subpremise ?? null,
+        premise: googleComponents?.premise ?? null,
+        sublocality: googleComponents?.sublocality ?? null,
+        raw_place_components: googleComponents?.raw ?? null,
+      })
+      .select("*")
+      .single();
+
+    setAddingAddress(false);
+
+    if (insertError || !data) {
+      setAddAddressError("Could not save that address. Please check the fields and try again.");
+      return;
+    }
+
+    const saved = data as Address;
+    setAddressList((current) => [...current, saved]);
+    setSelectedAddressId(saved.id);
+    setShowNewAddressForm(false);
+
+    // Reset the form so opening "new address" again starts fresh.
+    setRecipientName(defaultName);
+    setRecipientPhone(localPhoneDigits(defaultPhone));
+    setFlatNo("");
+    setStreetName("");
+    setArea("");
+    setLine2("");
+    setCity("");
+    setStateVal("");
+    setPostalCode("");
+    clearSelectedAddress();
+    setLat(null);
+    setLng(null);
+    setFormattedAddress(null);
+    setGooglePlaceId(null);
+    setGoogleComponents(null);
+
+    router.refresh();
+  };
+
   // clearCart() on a successful order also empties `cart`, which would
   // otherwise re-trigger this same guard and redirect to /cart instead of
   // the order confirmation page — set right before navigating away on
@@ -408,20 +519,83 @@ export default function CheckoutBody({
     newAddressIdRef.current = null;
   };
 
+  const fail = async (msg: string) => {
+    await rollbackNewAddress();
+    setBusy(false);
+    submittingRef.current = false;
+    setError(msg);
+  };
+
+  // COD needs an explicit "Confirm order" step — placeOrder() below still
+  // resolves (and, for a new address, saves) the delivery address first,
+  // then stops and shows that summary instead of calling /api/orders/cod
+  // immediately. Snapshotted here (not read from addressList/refs again at
+  // confirm time) because a freshly-inserted address isn't in addressList
+  // yet — it only gets refetched on the next full page load.
+  const [showCodConfirm, setShowCodConfirm] = useState(false);
+  const [codConfirmAddress, setCodConfirmAddress] = useState<{
+    name: string;
+    phone: string;
+    line1: string;
+    line2: string | null;
+    city: string;
+    state: string;
+    postalCode: string;
+  } | null>(null);
+  const codAddressIdRef = useRef<string | null>(null);
+
+  const confirmCodOrder = async () => {
+    setShowCodConfirm(false);
+    setBusy(true);
+    const addressId = codAddressIdRef.current;
+    if (!addressId) {
+      await fail("Something went wrong — please try again.");
+      return;
+    }
+    const res = await fetch("/api/orders/cod", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ addressId, cart, promoCode }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      await fail(json.error ?? "Could not place order.");
+      return;
+    }
+    orderPlacedRef.current = true;
+    newAddressIdRef.current = null;
+    setBusy(false);
+    clearCart();
+    router.push(`/orders/${json.orderId}`);
+  };
+
+  // Same idea as the Razorpay modal's ondismiss below — an address saved
+  // for this attempt shouldn't stick around if the attempt is abandoned.
+  const cancelCodOrder = () => {
+    setShowCodConfirm(false);
+    void rollbackNewAddress();
+    setBusy(false);
+    submittingRef.current = false;
+  };
+
   const placeOrder = async () => {
     if (submittingRef.current) return;
     submittingRef.current = true;
 
-    const fail = async (msg: string) => {
-      await rollbackNewAddress();
-      setBusy(false);
-      submittingRef.current = false;
-      setError(msg);
-    };
-
     setError(null);
 
     let addressId = selectedAddressId;
+    // Only populated on the new-address path — used for the COD confirm
+    // summary below (a saved address is looked up from addressList instead).
+    let newAddressSummary: {
+      name: string;
+      phone: string;
+      line1: string;
+      line2: string | null;
+      city: string;
+      state: string;
+      postalCode: string;
+    } | null = null;
 
     // Read the live DOM value for each field rather than trusting state
     // directly — browser autofill on these fields (name/tel/city/state/
@@ -500,6 +674,15 @@ export default function CheckoutBody({
       }
       addressId = data.id;
       newAddressIdRef.current = data.id;
+      newAddressSummary = {
+        name: effRecipientName.trim(),
+        phone: effRecipientPhone.trim(),
+        line1,
+        line2: effLine2.trim() || null,
+        city: effCity.trim(),
+        state: effState.trim(),
+        postalCode: effPostalCode.trim(),
+      };
     }
 
     // A saved address created before this feature existed (or one saved
@@ -522,26 +705,28 @@ export default function CheckoutBody({
       return;
     }
 
-    setBusy(true);
-
     if (paymentMethod === "cod") {
-      const res = await fetch("/api/orders/cod", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ addressId, cart, promoCode }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        await fail(json.error ?? "Could not place order.");
-        return;
-      }
-      orderPlacedRef.current = true;
-      newAddressIdRef.current = null;
+      const savedAddr = !showNewAddressForm ? addressList.find((a) => a.id === addressId) : null;
+      codAddressIdRef.current = addressId;
+      setCodConfirmAddress(
+        newAddressSummary ??
+          (savedAddr && {
+            name: savedAddr.recipient_name,
+            phone: savedAddr.recipient_phone,
+            line1: savedAddr.line1,
+            line2: savedAddr.line2,
+            city: savedAddr.city,
+            state: savedAddr.state,
+            postalCode: savedAddr.postal_code,
+          }) ??
+          null
+      );
       setBusy(false);
-      clearCart();
-      router.push(`/orders/${json.orderId}`);
+      setShowCodConfirm(true);
       return;
     }
+
+    setBusy(true);
 
     // Online payment via Razorpay
     const createRes = await fetch("/api/razorpay/create-order", {
@@ -635,22 +820,35 @@ export default function CheckoutBody({
           <div className="checkout-section-label">Delivery address</div>
           {addressActionError && <div className="checkout-error" style={{ marginBottom: 14 }}>{addressActionError}</div>}
 
-          {/* Pinned as the first item in the list rather than a corner
-              button — the previous top-right toggle was easy to miss. */}
+          {/* Both options shown together (not one button whose label
+              flips) so it's never ambiguous which one is actually active —
+              a single toggle read as "use a saved address" was still
+              showing while a new address was actually selected. */}
           {addressList.length > 0 && (
-            <button
-              type="button"
-              className={`checkout-address-card checkout-address-card--add${showNewAddressForm ? " is-selected" : ""}`}
-              onClick={() => {
-                setShowNewAddressForm((v) => !v);
-                setEditingAddressId(null);
-              }}
-            >
-              <span className="checkout-address-card__radio checkout-address-card__radio--add">+</span>
-              <div className="checkout-address-card__name">
-                {showNewAddressForm ? "Use a saved address instead" : "Use a new address"}
-              </div>
-            </button>
+            <div className="checkout-address-mode-row">
+              <button
+                type="button"
+                className={`checkout-address-card checkout-address-card--add${showNewAddressForm ? " is-selected" : ""}`}
+                onClick={() => {
+                  setShowNewAddressForm(true);
+                  setEditingAddressId(null);
+                }}
+              >
+                <span className="checkout-address-card__radio checkout-address-card__radio--add">+</span>
+                <div className="checkout-address-card__name">Use a new address</div>
+              </button>
+              <button
+                type="button"
+                className={`checkout-address-card checkout-address-card--add${!showNewAddressForm ? " is-selected" : ""}`}
+                onClick={() => {
+                  setShowNewAddressForm(false);
+                  setEditingAddressId(null);
+                }}
+              >
+                <span className="checkout-address-card__radio"></span>
+                <div className="checkout-address-card__name">Use a saved address</div>
+              </button>
+            </div>
           )}
 
           {!showNewAddressForm &&
@@ -944,6 +1142,17 @@ export default function CheckoutBody({
                   />
                 </div>
               </div>
+
+              {addAddressError && <div className="checkout-error">{addAddressError}</div>}
+              <button
+                type="button"
+                className="checkout-pay-btn"
+                onClick={addNewAddress}
+                disabled={addingAddress}
+                style={{ marginTop: 8 }}
+              >
+                <span>{addingAddress ? "Adding…" : "Add address"}</span>
+              </button>
             </div>
           )}
         </div>
@@ -1053,6 +1262,59 @@ export default function CheckoutBody({
           )}
         </div>
       </div>
+
+      {showCodConfirm && pricing && totals && (
+        <div className="cod-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="cod-confirm-title">
+          <div className="cod-confirm-modal">
+            <h2 id="cod-confirm-title" className="cod-confirm-modal__title">Confirm your order</h2>
+
+            <div className="cod-confirm-modal__section">
+              {pricing.items.map((item) => (
+                <div className="cart-item cart-item--compact" key={item.variantId}>
+                  <div>
+                    <div className="cart-item__name">{item.productName}</div>
+                    <div className="cart-item__size">
+                      {item.variantLabel} · Qty {item.qty}
+                    </div>
+                  </div>
+                  <span className="cart-item__price">{formatRupees(item.lineTotalRupees)}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="cart-summary__total cod-confirm-modal__total">
+              <span className="cart-summary__total-label">Total</span>
+              <span className="cart-summary__total-value">{formatRupees(totals.totalRupees)}</span>
+            </div>
+
+            {codConfirmAddress && (
+              <div className="cod-confirm-modal__section">
+                <div className="checkout-section-label">Delivery address</div>
+                <div className="checkout-address-card__name">{codConfirmAddress.name}</div>
+                <div className="checkout-address-card__lines">
+                  {codConfirmAddress.line1}
+                  {codConfirmAddress.line2 ? `, ${codConfirmAddress.line2}` : ""}, {codConfirmAddress.city},{" "}
+                  {codConfirmAddress.state} {codConfirmAddress.postalCode}
+                </div>
+                <div className="checkout-address-card__phone">{codConfirmAddress.phone}</div>
+              </div>
+            )}
+
+            <div className="cod-confirm-modal__note">
+              For COD orders, you can pay in cash or using UPI once you receive the products.
+            </div>
+
+            <div className="cod-confirm-modal__actions">
+              <button type="button" className="checkout-address-toggle checkout-address-toggle--muted" onClick={cancelCodOrder}>
+                Go Back
+              </button>
+              <button type="button" className="checkout-pay-btn cod-confirm-modal__confirm-btn" onClick={confirmCodOrder}>
+                Confirm order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

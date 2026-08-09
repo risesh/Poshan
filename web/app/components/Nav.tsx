@@ -15,10 +15,16 @@ export default function Nav() {
   const { user, signOut } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
-  // Every page shows a "Products" link back to the homepage's product
-  // grid except the homepage itself, which has that grid inline already.
-  const showProductsLink = pathname !== "/";
   const onProductPage = pathname.startsWith("/products/");
+  // On the homepage itself, "/#products" is a same-page hash — Link's own
+  // hash-scroll only reliably fires on an actual route change, not when
+  // pathname is already "/", so that case scrolls manually instead.
+  const handleProductsClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    if (pathname === "/") {
+      e.preventDefault();
+      document.getElementById("products")?.scrollIntoView({ behavior: "smooth" });
+    }
+  };
 
   // /admin has its own topbar (app/admin/layout.tsx) — showing both would
   // be redundant.
@@ -43,14 +49,13 @@ export default function Nav() {
           </div>
         </Link>
         <div className={`nav__links${isOpen ? " is-open" : ""}`}>
-          {showProductsLink && (
-            <Link
-              href="/#products"
-              className={`nav__link${onProductPage ? " nav__link--active" : ""}`}
-            >
-              Products
-            </Link>
-          )}
+          <Link
+            href="/#products"
+            className={`nav__link${onProductPage ? " nav__link--active" : ""}`}
+            onClick={handleProductsClick}
+          >
+            Products
+          </Link>
           <Link
             href="/cart"
             className={`nav__link${pathname === "/cart" ? " nav__link--active" : ""}`}
