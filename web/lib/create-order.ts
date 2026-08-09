@@ -16,18 +16,36 @@ type PaymentInfo =
 //
 // promoCode is looked up here, independently, rather than trusting a
 // discount amount the client might submit — same principle as re-deriving
-// prices from product data in computeOrderTotals. For the Razorpay path,
-// this must land on the exact same discount /api/razorpay/create-order
-// already used to size the payment (same code, same cart, same
-// deterministic math), so the stored order matches what was actually charged.
+// prices from product data in computeOrderTotals.
+//
+// For the Razorpay path, `expectedTotalRupees` (what Razorpay confirms was
+// actually paid — see verify/route.ts) is checked against the total this
+// function computes from `cart`/`promoCode`/`addressId`. Without this, the
+// cart/promo/address here would be trusted at face value: a client could
+// reuse a valid signature from a small real payment and submit a
+// completely different, expensive cart at verify time. The payment_id
+// pre-check below closes the companion hole — reusing that same valid
+// payment a second time to mint additional paid orders.
 export async function createOrder(
   supabase: SupabaseClient,
   userId: string,
   addressId: string,
   cart: Record<string, number>,
   payment: PaymentInfo,
-  promoCode: string | null = null
+  promoCode: string | null = null,
+  expectedTotalRupees?: number
 ) {
+  if (payment.method !== "cod") {
+    const { data: existingOrder } = await supabase
+      .from("orders")
+      .select("id")
+      .eq("payment_id", payment.paymentId)
+      .maybeSingle();
+    if (existingOrder) {
+      throw new Error("This payment has already been used to place an order.");
+    }
+  }
+
   const promo = await lookupPromoCode(supabase, promoCode);
 
   // Never trust a shipping fee from the client — look up the delivery
@@ -48,6 +66,12 @@ export async function createOrder(
   // disabled-button state alone (see MIN_ORDER_RUPEES's own comment).
   if (totals.subtotalRupees < MIN_ORDER_RUPEES) {
     throw new Error(`Minimum order value is ₹${MIN_ORDER_RUPEES}.`);
+  }
+
+  if (expectedTotalRupees !== undefined && totals.totalRupees !== expectedTotalRupees) {
+    throw new Error(
+      "This order's cart doesn't match what was actually paid for. No order was placed — please contact support if you were charged."
+    );
   }
 
   let orderId: string | null = null;

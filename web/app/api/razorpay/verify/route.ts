@@ -42,16 +42,23 @@ export async function POST(request: Request) {
     .update(`${razorpay_order_id}|${razorpay_payment_id}`)
     .digest("hex");
 
-  if (expectedSignature !== razorpay_signature) {
+  const expectedBuf = Buffer.from(expectedSignature);
+  const actualBuf = Buffer.from(razorpay_signature ?? "");
+  const signatureValid =
+    expectedBuf.length === actualBuf.length && crypto.timingSafeEqual(expectedBuf, actualBuf);
+  if (!signatureValid) {
     return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
   }
 
-  // The checkout modal's success callback doesn't say which method the
-  // customer actually used (UPI/card/netbanking) — ask Razorpay directly.
-  // Wallet/EMI aren't in our narrower payment_method enum, so they fall
-  // back to 'card'; this only affects which label gets stored, the
-  // signature check above already proved the payment itself.
+  // The signature only proves *a* payment happened for this order_id/
+  // payment_id pair — not what it was for or how much. Ask Razorpay
+  // directly for the payment's own record of the order it belongs to and
+  // the amount actually charged, and treat that (not the cart in this
+  // request body) as the source of truth. Unlike the method lookup below,
+  // a failure here must be fatal — without it there's no way to confirm
+  // the order about to be written matches what was actually paid.
   let method: "upi" | "card" | "netbanking" = "card";
+  let paidAmountRupees: number;
   try {
     const auth = Buffer.from(
       `${process.env.RAZORPAY_KEY_ID}:${process.env.RAZORPAY_KEY_SECRET}`
@@ -60,11 +67,18 @@ export async function POST(request: Request) {
       headers: { Authorization: `Basic ${auth}` },
     });
     const payment = await res.json();
+    if (payment.order_id !== razorpay_order_id || typeof payment.amount !== "number") {
+      return NextResponse.json({ error: "Payment verification failed" }, { status: 400 });
+    }
     if (payment.method === "upi") method = "upi";
     else if (payment.method === "netbanking") method = "netbanking";
+    // Razorpay amounts are in paise (see create-order/route.ts's ×100).
+    paidAmountRupees = payment.amount / 100;
   } catch {
-    // Payment is already verified above; a failed lookup here only means
-    // it gets stored under the 'card' fallback label.
+    return NextResponse.json(
+      { error: "Could not confirm payment amount. Please contact support if you were charged." },
+      { status: 502 }
+    );
   }
 
   try {
@@ -74,7 +88,8 @@ export async function POST(request: Request) {
       addressId,
       cart,
       { method, paymentId: razorpay_payment_id },
-      promoCode ?? null
+      promoCode ?? null,
+      paidAmountRupees
     );
     return NextResponse.json({ orderId, orderNumber });
   } catch (err) {
