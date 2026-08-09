@@ -3,4 +3,12 @@
   # bundle — that's what the prefix means. Netlify's secrets scanner can't
   # tell "intentionally public" apart from "leaked," so without this it
   # fails every build the moment it finds these values in .next/static.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  #
+  # RESEND_FROM_EMAIL and TEST_ADMIN_EMAIL are plain email addresses, not
+  # credentials — both are hardcoded on purpose elsewhere in the repo
+  # (lib/notify-admins.ts's fallback, lib/admin.ts's allowlist, the
+  # 0012_test_admin_account.sql migration), so the scanner flags its own
+  # expected matches. TEST_ADMIN_PASSWORD is the actual secret half of that
+  # pair and is deliberately left out of this list — it should keep failing
+  # the build if it ever turns up in a committed file.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,RESEND_FROM_EMAIL,TEST_ADMIN_EMAIL"
