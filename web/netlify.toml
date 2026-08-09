@@ -12,3 +12,10 @@
   # pair and is deliberately left out of this list — it should keep failing
   # the build if it ever turns up in a committed file.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SITE_URL,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY,RESEND_FROM_EMAIL,TEST_ADMIN_EMAIL"
+
+# Without this, Netlify serves the raw .next output as static files —
+# fine for the prerendered (○) routes, but this app's home page and most
+# other routes are server-rendered (ƒ) and 404 without the plugin wiring
+# them up to a real function.
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
