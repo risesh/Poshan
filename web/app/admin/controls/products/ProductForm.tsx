@@ -127,6 +127,10 @@ export default function ProductForm({
       size: effectiveVariants[0].size,
       primaryVariantId: effectiveVariants[0].id,
       image: displayForm.imageUrl || undefined,
+      // The admin form only edits the single legacy image_url field — this
+      // preview doesn't have a multi-image carousel to draft, so it's
+      // always a single-item (or empty) array here.
+      images: displayForm.imageUrl ? [displayForm.imageUrl] : [],
       gradient: displayForm.imageUrl ? undefined : displayForm.gradient,
       inStock: effectiveVariants.some((v) => v.isInStock),
       tabCategories: displayForm.tabCategories,

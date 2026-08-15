@@ -67,15 +67,15 @@ a { color: inherit; }
 }
 
 .nav__logo {
-  width: 40px;
-  height: 40px;
+  width: 48px; /* was 40px, +20% */
+  height: 48px; /* was 40px, +20% */
   object-fit: contain;
 }
 
 .nav__wordmark {
   font-family: var(--font-display);
   font-weight: 300;
-  font-size: 22px;
+  font-size: 26.4px; /* was 22px, +20% */
   color: var(--color-ink);
   line-height: 1;
 }
@@ -88,7 +88,7 @@ a { color: inherit; }
 .nav__tagline {
   font-family: var(--font-display);
   font-weight: 400;
-  font-size: 11px;
+  font-size: 13.2px; /* was 11px, +20% */
   letter-spacing: var(--subtitle-letter-spacing);
   color: var(--color-teal);
   margin-top: 2px;
@@ -367,10 +367,22 @@ a { color: inherit; }
 
 .products__grid {
   display: grid;
+  /* 1fr, not a fixed/capped px width — the previous minmax(0, 354px) was
+     itself the bug being fixed here: capping growth at 354px is exactly
+     why the grid stayed narrow with empty space on either side no matter
+     how wide the screen was. 1fr splits whatever width the container
+     actually has three ways, so card width is a genuine function of
+     screen size, not a number frozen in the stylesheet. */
   grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-  /* 3 x 308px cards + 2 x 14px gaps in the source design, exactly. */
-  max-width: 952px;
+  /* was 42px (14px original x 3) — another 25% on top. */
+  gap: 52.5px;
+  /* var(--page-max-width), not a grid-specific number — this is the same
+     1280px column every other section on the site (nav, hero text, etc.)
+     already reads at, via the shared :root rail system. Reusing it means
+     the product grid finally uses as much width as the rest of the page
+     already does, without inventing a wider ceiling than the site
+     otherwise has (which is the "not increasing overall screen size" part). */
+  max-width: var(--page-max-width);
   margin: 0 auto;
 }
 
@@ -380,15 +392,20 @@ a { color: inherit; }
   background: #fff;
   border-radius: var(--radius-card);
   border: 1px solid var(--border-color);
-  box-shadow: 0 1px 3px rgba(30, 58, 52, 0.08);
+  /* Experimental — a crisper outline ring than the border alone (which is
+     easy to miss, --border-color is a very light mint on a white card
+     over a cream page) layered with the existing soft drop shadow. */
+  box-shadow: 0 0 0 1px rgba(30, 58, 52, 0.12), 0 1px 3px rgba(30, 58, 52, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  /* 333px base + 40px (four .card__body gaps widened 6px -> 16px, one
-     extra line of breathing room between title/desc/attrs/price) — kept
-     fixed (not auto) so every card in the grid stays the same height
-     regardless of description length. */
-  height: 373px;
+  /* No fixed height (was 467px, before that 373px) — now that
+     .card__image sizes itself by aspect-ratio instead of a fixed px
+     height, a hardcoded total no longer makes sense either (it'd either
+     clip content again or leave dead space, exactly like the last few
+     rounds of chasing one fixed number after another). Cards in the same
+     row still end up equal height for free, via CSS Grid's default
+     align-items: stretch on .products__grid — no explicit rule needed. */
   cursor: pointer;
   transition: transform 0.2s ease;
 }
@@ -397,7 +414,10 @@ a { color: inherit; }
 
 .card--out-of-stock {
   position: relative;
-  height: 373px;
+  /* No fixed height, same reasoning as .card above — the grid's
+     align-items: stretch handles matching this to its row's tallest
+     sibling; .card--out-of-stock .card below fills whatever that ends
+     up being via height: 100%. */
 }
 
 .card--out-of-stock .card {
@@ -427,13 +447,27 @@ a { color: inherit; }
 }
 
 .card__image {
-  height: 130px;
+  /* aspect-ratio, not a fixed height — .card__image's width now varies
+     with screen size (see .products__grid's 1fr columns), so a flat px
+     height would make the image's shape distort differently at every
+     width instead of scaling with it. 354 / 257.6 is calibrated off the
+     previous fixed values (354px wide, 224px tall) with height's own
+     requested +15% baked into the ratio (224 x 1.15 = 257.6), so at that
+     same reference width the image is that much taller — and at any
+     other width, it scales proportionally instead of distorting. */
+  aspect-ratio: 354 / 257.6;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  background-size: cover;
+  /* contain, not cover — cover was cropping product photos to force-fill
+     the box. background-color fills any letterboxed space that leaves
+     (a no-op for the gradient-only cards, which have no intrinsic size
+     for background-size to apply against). */
+  background-size: contain;
   background-position: center;
+  background-repeat: no-repeat;
+  background-color: var(--color-bone);
   flex-shrink: 0;
 }
 
@@ -954,7 +988,7 @@ a { color: inherit; }
 
 .product-hero__image {
   border-radius: var(--radius-card);
-  aspect-ratio: 1;
+  aspect-ratio: 5 / 4; /* was 1 (square) — 20% shorter, same width, so it stops pushing the info column's text out of view */
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -970,9 +1004,14 @@ a { color: inherit; }
    be set inline on the element (background-image + this class for the
    gradient-overlay layer, sizing, and position). */
 .product-hero__image--photo {
-  background-size: cover;
+  /* contain, not cover — cover was cropping the top/bottom off taller
+     bottle-shaped product photos to force-fill the square frame. Whatever
+     space contain leaves around a non-square photo shows this bone fill
+     instead of the page's plain white showing through. */
+  background-size: contain;
   background-position: center;
   background-repeat: no-repeat;
+  background-color: var(--color-bone);
 }
 
 .product-hero__image--amla { background: var(--gradient-amla); }
@@ -998,6 +1037,53 @@ a { color: inherit; }
   font-size: 41.8px;
   color: var(--color-bone);
   line-height: 1;
+}
+
+/* PDP image carousel controls — only rendered when a product has more
+   than one image (see ProductHero.tsx). Positioned absolutely over
+   .product-hero__image, which is already position:relative/overflow:hidden. */
+.product-hero__image-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 58, 52, 0.45);
+  color: var(--color-bone);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.product-hero__image-nav:hover { background: rgba(30, 58, 52, 0.65); }
+.product-hero__image-nav--prev { left: 16px; }
+.product-hero__image-nav--next { right: 16px; }
+
+.product-hero__image-dots {
+  position: absolute;
+  top: 32px;
+  right: 32px;
+  display: flex;
+  gap: 6px;
+}
+
+.product-hero__image-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  border: 1px solid var(--color-bone);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.product-hero__image-dot.is-active {
+  background: var(--color-bone);
 }
 
 .product-info {
@@ -2407,7 +2493,7 @@ a { color: inherit; }
   .policy-hero__title { font-size: 32px; }
 
   .product-hero__grid { grid-template-columns: 1fr; gap: 32px; }
-  .product-hero__image { aspect-ratio: 16 / 9; }
+  .product-hero__image { aspect-ratio: 20 / 9; } /* was 16/9 — 20% shorter, same width */
   .product-info { padding-top: 0; }
   .product-info__title { font-size: 36px; }
   .product-panel__grid { grid-template-columns: 1fr; }

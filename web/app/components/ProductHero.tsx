@@ -56,12 +56,17 @@ export default function ProductHero({ product }: { product: Product }) {
     [product.variants]
   );
 
-  const imageStyle = product.image
+  // Independent of `selected` (the variant) — images are per-product, not
+  // per-size, so switching sizes never touches this.
+  const [imageIndex, setImageIndex] = useState(0);
+  const activeImage = product.images[imageIndex];
+
+  const imageStyle = activeImage
     ? {
-        backgroundImage: `linear-gradient(to bottom, rgba(30,58,52,0.45) 0%, rgba(30,58,52,0) 20%, rgba(30,58,52,0) 62%, rgba(30,58,52,0.55) 100%), url('${product.image}')`,
+        backgroundImage: `linear-gradient(to bottom, rgba(30,58,52,0.45) 0%, rgba(30,58,52,0) 20%, rgba(30,58,52,0) 62%, rgba(30,58,52,0.55) 100%), url('${activeImage}')`,
       }
     : undefined;
-  const imageClass = product.image
+  const imageClass = activeImage
     ? " product-hero__image--photo"
     : product.gradient
       ? ` product-hero__image--${product.gradient}`
@@ -80,6 +85,40 @@ export default function ProductHero({ product }: { product: Product }) {
             <div className="product-hero__image-category">{product.category}</div>
             <div className="product-hero__image-name">{product.name}</div>
           </div>
+
+          {product.images.length > 1 && (
+            <>
+              <button
+                type="button"
+                className="product-hero__image-nav product-hero__image-nav--prev"
+                aria-label="Previous image"
+                onClick={() =>
+                  setImageIndex((i) => (i - 1 + product.images.length) % product.images.length)
+                }
+              >
+                ‹
+              </button>
+              <button
+                type="button"
+                className="product-hero__image-nav product-hero__image-nav--next"
+                aria-label="Next image"
+                onClick={() => setImageIndex((i) => (i + 1) % product.images.length)}
+              >
+                ›
+              </button>
+              <div className="product-hero__image-dots">
+                {product.images.map((img, i) => (
+                  <button
+                    key={img + i}
+                    type="button"
+                    className={`product-hero__image-dot${i === imageIndex ? " is-active" : ""}`}
+                    aria-label={`Show image ${i + 1} of ${product.images.length}`}
+                    onClick={() => setImageIndex(i)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
 
         <div className="product-info">

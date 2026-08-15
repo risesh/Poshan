@@ -37,8 +37,8 @@ export default function Nav() {
           <Image
             src="/logo-icon.png"
             alt=""
-            width={36}
-            height={36}
+            width={48}
+            height={48}
             className="nav__logo"
           />
           <div>

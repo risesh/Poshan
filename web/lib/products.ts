@@ -35,6 +35,13 @@ export type Product = {
   // out of several just because it happens to sort first.
   primaryVariantId: string;
   tabCategories: string[];
+  // Ordered PDP carousel (ProductHero.tsx) — sourced from product_images
+  // (supabase/migrations/0014_product_images.sql) when any rows exist for
+  // this product, falling back to a single-item array built from `image`
+  // for a product that hasn't been migrated to multi-image yet. Never
+  // empty when `image` is set, so ProductHero doesn't need a separate
+  // "zero images" case for the common product.
+  images: string[];
 
   // Detail-page-only fields
   description: string;
@@ -110,6 +117,7 @@ type ProductRow = {
   thumb_name_size: string;
   placeholder_content: boolean;
   product_variants: VariantRow[];
+  product_images: ProductImageRow[];
 };
 
 type VariantRow = {
@@ -123,13 +131,19 @@ type VariantRow = {
   sort_order: number;
 };
 
+type ProductImageRow = {
+  image_url: string;
+  sort_order: number;
+};
+
 const PRODUCT_SELECT = `
   id, slug, name, category, badge, description, attributes, is_instock,
   short_description, gradient, badge_style, image_url, tab_categories,
   description_bullets, detail_attrs, usage_bullets, vegetarian, ingredients,
   net_quantity, storage, shelf_life, cart_badge, thumb_gradient,
   thumb_name_lines, thumb_name_size, placeholder_content,
-  product_variants ( id, size_label, price_rupees, stock_quantity, is_instock, nutrition, unit_label, sort_order )
+  product_variants ( id, size_label, price_rupees, stock_quantity, is_instock, nutrition, unit_label, sort_order ),
+  product_images ( image_url, sort_order )
 `;
 
 function mapRowToProduct(row: ProductRow): Product {
@@ -159,6 +173,13 @@ function mapRowToProduct(row: ProductRow): Product {
   const availableRow =
     sortedVariantRows.find((v) => v.is_instock && v.stock_quantity > 0) ?? sortedVariantRows[0];
 
+  const images =
+    row.product_images.length > 0
+      ? [...row.product_images].sort((a, b) => a.sort_order - b.sort_order).map((img) => img.image_url)
+      : row.image_url
+        ? [row.image_url]
+        : [];
+
   return {
     id: row.id,
     slug: row.slug,
@@ -171,7 +192,14 @@ function mapRowToProduct(row: ProductRow): Product {
     price: availableRow?.price_rupees ?? 0,
     size: availableRow?.size_label ?? "",
     primaryVariantId: availableRow?.id ?? "",
-    image: row.image_url ?? undefined,
+    // Derived from `images` (first item), not the raw column directly —
+    // once a product has product_images rows, its card/thumbnail should
+    // reflect the new first photo, not a stale image_url that's no longer
+    // being kept in sync. images[0] === row.image_url for anything not
+    // yet migrated to the multi-image system, so this changes nothing for
+    // the rest of the catalog.
+    image: images[0],
+    images,
     gradient: row.gradient ?? undefined,
     inStock: row.is_instock && variants.some((v) => v.isInStock),
     tabCategories: row.tab_categories,
@@ -235,7 +263,7 @@ export async function fetchVariantsByIds(
   const { data, error } = await supabase
     .from("product_variants")
     .select(
-      "id, size_label, price_rupees, unit_label, is_instock, stock_quantity, products ( id, name, image_url, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size )"
+      "id, size_label, price_rupees, unit_label, is_instock, stock_quantity, products ( id, name, image_url, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size, product_images ( image_url, sort_order ) )"
     )
     .in("id", uniqueIds);
   if (error) throw error;
@@ -255,16 +283,25 @@ export async function fetchVariantsByIds(
       thumb_gradient: string;
       thumb_name_lines: string[];
       thumb_name_size: string;
+      product_images: ProductImageRow[];
     } | null;
   };
 
   for (const row of (data ?? []) as unknown as Row[]) {
     if (!row.products) continue;
+    // Same first-of-images derivation as mapRowToProduct, so a cart/order
+    // line's thumbnail matches whatever the product page is now showing
+    // instead of a stale image_url.
+    const productImages =
+      row.products.product_images.length > 0
+        ? [...row.products.product_images].sort((a, b) => a.sort_order - b.sort_order)
+        : [];
+    const image = productImages[0]?.image_url ?? row.products.image_url ?? undefined;
     lookup.set(row.id, {
       product: {
         id: row.products.id,
         name: row.products.name,
-        image: row.products.image_url ?? undefined,
+        image,
         cartBadge: row.products.cart_badge,
         thumbGradient: row.products.thumb_gradient,
         thumbNameLines: row.products.thumb_name_lines,
