@@ -33,16 +33,11 @@ export async function POST(request: Request) {
     // written, so the two always agree.
     const promo = await lookupPromoCode(supabase, promoCode);
     const coords = await getAddressCoordinates(supabase, addressId);
-    if (!coords) {
-      return NextResponse.json(
-        {
-          error:
-            "This delivery address doesn't have a location. Please add or select an address using the address search.",
-        },
-        { status: 400 }
-      );
-    }
-    const distanceKm = distanceFromFulfillmentCenterKm(coords.lat, coords.lng);
+    // Missing lat/lng (Places was unreachable when this address was saved)
+    // isn't fatal — computeOrderTotals/computeShippingRupees prices that as
+    // a flat fallback rate, the same way /api/razorpay/verify and
+    // /api/orders/cod do via lib/create-order.ts, so all three always agree.
+    const distanceKm = coords ? distanceFromFulfillmentCenterKm(coords.lat, coords.lng) : null;
     const variantLookup = await fetchVariantsByIds(supabase, Object.keys(cart));
     totals = computeOrderTotals(cart, promo, distanceKm, variantLookup);
     if (totals.subtotalRupees < MIN_ORDER_RUPEES) {

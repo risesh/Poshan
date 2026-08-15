@@ -128,13 +128,14 @@ export function computeCartPricing(
 
 // Shipping (and therefore the final total) needs a resolved delivery
 // distance — distanceKm has no default, forcing every order-creating call
-// site to prove it knows the delivery location before pricing an order,
-// the same way `promo` above has to be a real looked-up PromoInfo, never a
-// raw code string.
+// site to prove it knows (or explicitly doesn't know, via null —
+// see computeShippingRupees's fallback) the delivery location before
+// pricing an order, the same way `promo` above has to be a real
+// looked-up PromoInfo, never a raw code string.
 export function computeOrderTotals(
   cart: Record<string, number>,
   promo: PromoInfo | null,
-  distanceKm: number,
+  distanceKm: number | null,
   variantLookup: VariantLookup
 ): OrderTotals {
   const pricing = computeCartPricing(cart, promo, variantLookup);

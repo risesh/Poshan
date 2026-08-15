@@ -17,10 +17,19 @@ export function distanceFromFulfillmentCenterKm(lat: number, lng: number): numbe
   return haversineDistanceKm(FULFILLMENT_CENTER.lat, FULFILLMENT_CENTER.lng, lat, lng);
 }
 
+// Charged when there's no resolved delivery location to measure a real
+// distance from — an address saved while Google Places was unreachable
+// (see CheckoutBody's placesAvailable check) or, previously, one saved
+// before location search existed at all.
+const FALLBACK_SHIPPING_RUPEES = 50;
+
 // Free above ₹1000 subtotal regardless of distance; below that, free under
 // 5km, then ₹10 per additional km — any partial km counts as a full one.
-export function computeShippingRupees(subtotalRupees: number, distanceKm: number): number {
+// distanceKm is null when the address has no lat/lng at all, not just when
+// it happens to be a nearby/free-tier distance — see FALLBACK_SHIPPING_RUPEES.
+export function computeShippingRupees(subtotalRupees: number, distanceKm: number | null): number {
   if (subtotalRupees > 1000) return 0;
+  if (distanceKm === null) return FALLBACK_SHIPPING_RUPEES;
   if (distanceKm < 5) return 0;
   return Math.ceil(distanceKm - 5) * 10;
 }

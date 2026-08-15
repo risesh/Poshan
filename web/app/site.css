@@ -2606,6 +2606,16 @@ a { color: inherit; }
   margin-top: 7px;
 }
 
+/* Places-unavailable / checking states in place of the search box — same
+   muted-callout language as the COD confirm modal's note. */
+.checkout-field-note--callout {
+  background: var(--color-mist);
+  border-radius: var(--radius-button);
+  padding: 10px 14px;
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
 .checkout-address-row {
   display: flex;
   align-items: center;

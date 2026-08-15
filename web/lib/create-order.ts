@@ -50,15 +50,11 @@ export async function createOrder(
 
   // Never trust a shipping fee from the client — look up the delivery
   // address's coordinates ourselves and compute distance server-side. A
-  // missing lat/lng (address saved without ever using the location search)
-  // fails loudly here rather than silently pricing shipping as free.
+  // missing lat/lng (saved while Google Places was unreachable, or before
+  // location search existed) isn't fatal — computeShippingRupees prices
+  // that as a flat fallback rate instead of blocking the order outright.
   const coords = await getAddressCoordinates(supabase, addressId);
-  if (!coords) {
-    throw new Error(
-      "This delivery address doesn't have a location. Please add or select an address using the address search."
-    );
-  }
-  const distanceKm = distanceFromFulfillmentCenterKm(coords.lat, coords.lng);
+  const distanceKm = coords ? distanceFromFulfillmentCenterKm(coords.lat, coords.lng) : null;
   const variantLookup = await fetchVariantsByIds(supabase, Object.keys(cart));
   const totals = computeOrderTotals(cart, promo, distanceKm, variantLookup);
 

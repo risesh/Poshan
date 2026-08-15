@@ -163,9 +163,35 @@ export default function CheckoutBody({
   }
   const searchSeqRef = useRef(0);
 
+  // null = still checking (true on first mount; keeps its last known value
+  // across a close/reopen rather than flashing back to "checking" every
+  // time). Re-fires each time the new-address form opens, so a Places
+  // outage that starts or ends mid-session is picked up on the next
+  // attempt instead of being stuck on a stale result. When false, the
+  // search box is hidden and the manual fields become the only way in —
+  // see placeOrder/addNewAddress's validation, which drops the "must come
+  // from search" requirement to match.
+  const [placesAvailable, setPlacesAvailable] = useState<boolean | null>(null);
+
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showNewAddressForm) return;
+    let cancelled = false;
+    fetch("/api/places/health")
+      .then((res) => res.json())
+      .then((json) => {
+        if (!cancelled) setPlacesAvailable(!!json.available);
+      })
+      .catch(() => {
+        if (!cancelled) setPlacesAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [showNewAddressForm]);
 
   useEffect(() => {
     // Locked after a selection — searchInput now holds the *result*
@@ -352,7 +378,11 @@ export default function CheckoutBody({
       );
       return;
     }
-    if (lat == null || lng == null) {
+    // Only requires a resolved lat/lng when search is actually expected to
+    // work — with Places unreachable, hasManualAddress above is the whole
+    // requirement, and this address is priced with the flat fallback
+    // shipping rate instead (see lib/shipping.ts).
+    if (placesAvailable !== false && (lat == null || lng == null)) {
       setAddAddressError("Please search and select your address so we can confirm the delivery location.");
       return;
     }
@@ -478,13 +508,22 @@ export default function CheckoutBody({
   const selectedSavedAddress = addressList.find((a) => a.id === selectedAddressId);
   const activeLat = showNewAddressForm ? lat : (selectedSavedAddress?.lat ?? null);
   const activeLng = showNewAddressForm ? lng : (selectedSavedAddress?.lng ?? null);
+  // null here means "price with the flat fallback rate" (see
+  // computeShippingRupees), not "can't price yet" — that distinction is
+  // hasAddressContext below, so totals can still show/the button can still
+  // enable for an address that's real but has no coordinates (Places was
+  // down when it was saved).
   const distanceKm =
     activeLat != null && activeLng != null ? distanceFromFulfillmentCenterKm(activeLat, activeLng) : null;
+  // Whether there's actually an address in play at all — nothing selected
+  // and the new-address form closed means there's truly nothing to price
+  // yet, vs. an address/form that exists but simply lacks a location.
+  const hasAddressContext = showNewAddressForm || selectedAddressId !== null;
 
   // Items/subtotal/discount never depend on delivery location — available
   // immediately, so the order summary can render before a location is
   // chosen. Shipping/total do depend on it, hence the separate `totals`
-  // below, which stays null until distanceKm resolves.
+  // below, which stays null until an address exists to price.
   const pricing = useMemo(() => {
     if (!variantLookup) return null;
     try {
@@ -495,13 +534,13 @@ export default function CheckoutBody({
   }, [cart, effectiveAppliedPromo, variantLookup]);
 
   const totals = useMemo(() => {
-    if (distanceKm === null || !variantLookup) return null;
+    if (!variantLookup || !hasAddressContext) return null;
     try {
       return computeOrderTotals(cart, effectiveAppliedPromo, distanceKm, variantLookup);
     } catch {
       return null;
     }
-  }, [cart, effectiveAppliedPromo, distanceKm, variantLookup]);
+  }, [cart, effectiveAppliedPromo, distanceKm, variantLookup, hasAddressContext]);
 
   // A ref, not state — state updates are async/batched, so a second click
   // fired before React re-renders the disabled Pay button would still read
@@ -631,7 +670,11 @@ export default function CheckoutBody({
       if (!effCity.trim()) missing.push("City");
       if (!effState.trim()) missing.push("State");
       if (!effPostalCode.trim()) missing.push("Pincode");
-      if (lat == null || lng == null) missing.push("Delivery location (search and select your address)");
+      // Same relaxation as addNewAddress above — a resolved location is
+      // only required when Places is actually expected to be working.
+      if (placesAvailable !== false && (lat == null || lng == null)) {
+        missing.push("Delivery location (search and select your address)");
+      }
       if (missing.length > 0) {
         submittingRef.current = false;
         setError(`Please fill in: ${missing.join(", ")}.`);
@@ -685,18 +728,11 @@ export default function CheckoutBody({
       };
     }
 
-    // A saved address created before this feature existed (or one saved
-    // without ever using the location search) may not have a location —
-    // there's no UI to backfill it, so the only fix is a new address.
-    if (!showNewAddressForm && addressId) {
-      const addr = addressList.find((a) => a.id === addressId);
-      if (!addr || addr.lat == null || addr.lng == null) {
-        setBusy(false);
-        submittingRef.current = false;
-        setError("This saved address doesn't have a delivery location. Please add a new address using the location search.");
-        return;
-      }
-    }
+    // A saved address without a location (saved while Places was
+    // unreachable, or from before location search existed) is no longer a
+    // hard block — lib/create-order.ts prices it with the flat fallback
+    // shipping rate instead. addressId just needs to resolve to something
+    // real, checked right below.
 
     if (!addressId) {
       setBusy(false);
@@ -939,7 +975,7 @@ export default function CheckoutBody({
                       <div className="checkout-address-card__phone">{addr.recipient_phone}</div>
                       {(addr.lat == null || addr.lng == null) && (
                         <div style={{ color: "var(--color-sindoor)", fontFamily: "var(--font-mono)", fontSize: "11.9px", marginTop: 4 }}>
-                          Missing delivery location — add a new address to use this
+                          No precise location on file — standard flat shipping rate applies
                         </div>
                       )}
                     </div>
@@ -989,75 +1025,86 @@ export default function CheckoutBody({
                   />
                 </div>
               </div>
-              <div className="checkout-autocomplete">
-                <span className="checkout-field-label">Search address</span>
-                <div className="checkout-autocomplete__input-wrap">
-                  <input
-                    className={`checkout-input${addressSelected ? " checkout-input--disabled" : ""}`}
-                    value={searchInput}
-                    onChange={(e) => setSearchInput(e.target.value)}
-                    onFocus={() => {
-                      if (suggestions.length > 0) setShowDropdown(true);
-                    }}
-                    onBlur={() => setShowDropdown(false)}
-                    placeholder="Start typing an address or place name"
-                    autoComplete="off"
-                    disabled={addressSelected}
-                  />
-                  {addressSelected && (
-                    <button
-                      type="button"
-                      className="checkout-autocomplete__clear"
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={clearSelectedAddress}
-                      aria-label="Clear selected address and search again"
-                    >
-                      ×
-                    </button>
-                  )}
+              {placesAvailable === false ? (
+                <div className="checkout-field-note checkout-field-note--callout">
+                  Address search is temporarily unavailable, so it&apos;s been turned off for now —
+                  please fill in your address details manually below.
                 </div>
-                {showDropdown && suggestions.length > 0 && searchInput.trim().length >= 2 && (
-                  <div className="checkout-autocomplete__dropdown">
-                    {suggestions.map((s) => (
+              ) : placesAvailable === null ? (
+                <div className="checkout-field-note checkout-field-note--callout">
+                  Checking address search availability…
+                </div>
+              ) : (
+                <div className="checkout-autocomplete">
+                  <span className="checkout-field-label">Search address</span>
+                  <div className="checkout-autocomplete__input-wrap">
+                    <input
+                      className={`checkout-input${addressSelected ? " checkout-input--disabled" : ""}`}
+                      value={searchInput}
+                      onChange={(e) => setSearchInput(e.target.value)}
+                      onFocus={() => {
+                        if (suggestions.length > 0) setShowDropdown(true);
+                      }}
+                      onBlur={() => setShowDropdown(false)}
+                      placeholder="Start typing an address or place name"
+                      autoComplete="off"
+                      disabled={addressSelected}
+                    />
+                    {addressSelected && (
                       <button
                         type="button"
-                        key={s.placeId}
-                        className="checkout-autocomplete__item"
+                        className="checkout-autocomplete__clear"
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => selectSuggestion(s)}
+                        onClick={clearSelectedAddress}
+                        aria-label="Clear selected address and search again"
                       >
-                        <svg
-                          className="checkout-autocomplete__item-icon"
-                          width="16"
-                          height="16"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="#4A9B8E"
-                          strokeWidth="1.7"
-                        >
-                          <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
-                          <circle cx="12" cy="10" r="2.6"></circle>
-                        </svg>
-                        <div>
-                          <div className="checkout-autocomplete__item-main">{s.mainText}</div>
-                          <div className="checkout-autocomplete__item-secondary">{s.secondaryText}</div>
-                        </div>
+                        ×
                       </button>
-                    ))}
-                    <div className="checkout-autocomplete__attribution">
-                      <span className="checkout-autocomplete__attribution-label">Powered by</span>
-                      <span className="checkout-autocomplete__google-logo">
-                        <span>G</span>
-                        <span>o</span>
-                        <span>o</span>
-                        <span>g</span>
-                        <span>l</span>
-                        <span>e</span>
-                      </span>
-                    </div>
+                    )}
                   </div>
-                )}
-              </div>
+                  {showDropdown && suggestions.length > 0 && searchInput.trim().length >= 2 && (
+                    <div className="checkout-autocomplete__dropdown">
+                      {suggestions.map((s) => (
+                        <button
+                          type="button"
+                          key={s.placeId}
+                          className="checkout-autocomplete__item"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => selectSuggestion(s)}
+                        >
+                          <svg
+                            className="checkout-autocomplete__item-icon"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#4A9B8E"
+                            strokeWidth="1.7"
+                          >
+                            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"></path>
+                            <circle cx="12" cy="10" r="2.6"></circle>
+                          </svg>
+                          <div>
+                            <div className="checkout-autocomplete__item-main">{s.mainText}</div>
+                            <div className="checkout-autocomplete__item-secondary">{s.secondaryText}</div>
+                          </div>
+                        </button>
+                      ))}
+                      <div className="checkout-autocomplete__attribution">
+                        <span className="checkout-autocomplete__attribution-label">Powered by</span>
+                        <span className="checkout-autocomplete__google-logo">
+                          <span>G</span>
+                          <span>o</span>
+                          <span>o</span>
+                          <span>g</span>
+                          <span>l</span>
+                          <span>e</span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="checkout-address-form__row">
                 <div>
