@@ -37,14 +37,9 @@ export default function Footer({ compact = false }: { compact?: boolean }) {
         <Link href="/our-story" className="philosophy__link">
           Our story
         </Link>
-        <a
-          href="https://wa.me/917982414408?text=Hi%2C%20I%20have%20a%20question%20for%20you%20-%20"
-          className="philosophy__link"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <Link href="/contact" className="philosophy__link">
           Contact us
-        </a>
+        </Link>
         <Link href="/shipping" className="philosophy__link">
           Shipping &amp; Returns
         </Link>

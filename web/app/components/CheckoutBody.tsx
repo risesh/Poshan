@@ -173,7 +173,11 @@ export default function CheckoutBody({
   // from search" requirement to match.
   const [placesAvailable, setPlacesAvailable] = useState<boolean | null>(null);
 
-  const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
+  // Online payment is temporarily disabled (Razorpay isn't activated for
+  // live payments yet) — locked to "cod" for now. The toggle UI and the
+  // "online" branch through placeOrder/Razorpay are left in place rather
+  // than removed, so re-enabling is just restoring the toggle below.
+  const [paymentMethod] = useState<"online" | "cod">("cod");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1259,22 +1263,13 @@ export default function CheckoutBody({
               <PromoCodeField subtotalRupees={pricing.subtotalRupees} />
 
               <div className="checkout-payment">
-                <button
-                  type="button"
-                  className={`checkout-payment__option${paymentMethod === "online" ? " is-selected" : ""}`}
-                  onClick={() => setPaymentMethod("online")}
-                >
-                  <span className="checkout-payment__radio"></span>
-                  Pay online — UPI, card or netbanking
-                </button>
-                <button
-                  type="button"
-                  className={`checkout-payment__option${paymentMethod === "cod" ? " is-selected" : ""}`}
-                  onClick={() => setPaymentMethod("cod")}
-                >
+                <div className="checkout-payment__option is-selected" style={{ cursor: "default" }}>
                   <span className="checkout-payment__radio"></span>
                   Cash on Delivery
-                </button>
+                </div>
+              </div>
+              <div className="checkout-field-note">
+                Online payment is temporarily unavailable — Cash on Delivery only for now.
               </div>
 
               <button

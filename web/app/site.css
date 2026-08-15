@@ -2926,6 +2926,59 @@ a { color: inherit; }
   border: 5px solid var(--color-ink);
 }
 
+/* /contact — same bordered-card language as .checkout-payment__option, but
+   both options are always simultaneously usable (not a mutually-exclusive
+   toggle), so no is-selected/radio state. */
+.contact-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contact-option {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-card);
+  padding: 20px 22px;
+  background: #fff;
+  color: var(--color-ink);
+  transition: 0.2s ease;
+}
+
+.contact-option:hover {
+  border-color: var(--color-teal);
+  background: var(--color-bone);
+}
+
+.contact-option__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-mist);
+  color: var(--color-teal);
+}
+
+.contact-option__title {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 15.4px;
+  color: var(--color-ink);
+}
+
+.contact-option__detail {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 13.2px;
+  color: rgba(30, 58, 52, 0.6);
+  margin-top: 3px;
+}
+
 .checkout-pay-btn {
   width: 100%;
   font-family: var(--font-display);
