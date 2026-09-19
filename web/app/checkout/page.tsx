@@ -24,6 +24,15 @@ export default async function CheckoutPage() {
     supabase
       .from("addresses")
       .select("*")
+      // Explicit even though RLS's owner-scoped policy already covers a
+      // normal user — an admin account is also covered by the separate
+      // "Admins can view all addresses" policy (0003_admin_access.sql,
+      // needed for the admin orders dashboard to join every customer's
+      // address to their order), which would otherwise leak every
+      // customer's saved address into the admin's own checkout page since
+      // Postgres OR's permissive RLS policies together. Same reasoning as
+      // /orders' own .eq("user_id", ...) (app/orders/page.tsx).
+      .eq("user_id", user.id)
       .order("is_default", { ascending: false })
       .order("created_at", { ascending: false }),
     supabase.from("profiles").select("phone, name").eq("id", user.id).single(),
