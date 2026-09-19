@@ -8,6 +8,7 @@ import ProductHero from "@/app/components/ProductHero";
 import ProductPanel from "@/app/components/ProductPanel";
 import ScaledPreview from "./ScaledPreview";
 import ProductFields, { emptyProductForm, productToFormValue, type ProductFormValue } from "./ProductFields";
+import ProductImagesField, { type AdminProductImage } from "./ProductImagesField";
 
 // Rendered both above and below the (long) field list — repeated at the
 // top so Cancel and Save/Create are reachable without scrolling through
@@ -75,6 +76,10 @@ export default function ProductForm({
   const [manualSlug, setManualSlug] = useState<string | null>(product ? product.slug : null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Mirrors ProductImagesField's own state (see its onImagesChange prop)
+  // purely so the live preview below can show the real carousel instead of
+  // only the single legacy Image URL field — not otherwise read/written here.
+  const [liveImages, setLiveImages] = useState<AdminProductImage[]>(product?.productImages ?? []);
 
   const displayForm: ProductFormValue = useMemo(
     () => ({ ...form, slug: manualSlug ?? slugify(form.name) }),
@@ -127,10 +132,17 @@ export default function ProductForm({
       size: effectiveVariants[0].size,
       primaryVariantId: effectiveVariants[0].id,
       image: displayForm.imageUrl || undefined,
-      // The admin form only edits the single legacy image_url field — this
-      // preview doesn't have a multi-image carousel to draft, so it's
-      // always a single-item (or empty) array here.
-      images: displayForm.imageUrl ? [displayForm.imageUrl] : [],
+      // Mirrors lib/products.ts's own mapRowToProduct fallback: the real
+      // carousel (liveImages, kept in sync via ProductImagesField's
+      // onImagesChange) when the product has any, else the single legacy
+      // Image URL field — same rule, same order, so this preview never
+      // shows something the live storefront page wouldn't.
+      images:
+        liveImages.length > 0
+          ? [...liveImages].sort((a, b) => a.sortOrder - b.sortOrder).map((img) => img.imageUrl)
+          : displayForm.imageUrl
+            ? [displayForm.imageUrl]
+            : [],
       gradient: displayForm.imageUrl ? undefined : displayForm.gradient,
       inStock: effectiveVariants.some((v) => v.isInStock),
       tabCategories: displayForm.tabCategories,
@@ -151,7 +163,7 @@ export default function ProductForm({
       thumbNameLines: parsedThumbLines.length > 0 ? parsedThumbLines : [displayForm.name || "New product"],
       thumbNameSize: displayForm.thumbNameSize,
     };
-  }, [displayForm, product?.id]);
+  }, [displayForm, product?.id, liveImages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,6 +244,21 @@ export default function ProductForm({
         <FormActions isEditing={isEditing} submitting={submitting} onCancel={onCancel} error={error} />
 
         <ProductFields value={displayForm} onChange={patchForm} />
+
+        {isEditing ? (
+          <ProductImagesField
+            productId={product.id}
+            initialImages={product.productImages}
+            onImagesChange={setLiveImages}
+          />
+        ) : (
+          <div className="admin-controls-form__section">
+            <div className="admin-controls-form__section-title">Additional images (carousel)</div>
+            <p className="admin-controls-field-note">
+              Save this product first — additional images can be added once it has been created.
+            </p>
+          </div>
+        )}
 
         <FormActions isEditing={isEditing} submitting={submitting} onCancel={onCancel} error={error} />
       </form>

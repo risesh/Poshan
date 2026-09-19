@@ -238,6 +238,7 @@ export default function ProductFields({
               value={value.gradient}
               onChange={(e) => onChange({ gradient: e.target.value as "amla" | "turmeric" })}
               disabled={!!value.imageUrl.trim()}
+              title={value.imageUrl.trim() ? "Only used when Image URL is empty — clear it to pick a gradient" : undefined}
             >
               <option value="amla">Amla</option>
               <option value="turmeric">Turmeric</option>
@@ -360,40 +361,52 @@ export default function ProductFields({
         <div className="admin-controls-form__section-title">Variants</div>
         {value.variants.map((v, i) => (
           <div className="admin-controls-variant-form-row" key={i}>
-            <input
-              className="admin-filter-bar__input"
-              placeholder="Size, e.g. 500 ml"
-              value={v.sizeLabel}
-              onChange={(e) => updateVariant(i, { sizeLabel: e.target.value })}
-            />
-            <input
-              className="admin-filter-bar__input"
-              placeholder="SKU"
-              value={v.sku}
-              onChange={(e) => updateVariant(i, { sku: e.target.value })}
-            />
-            <input
-              className="admin-filter-bar__input"
-              placeholder="Price ₹"
-              type="number"
-              min={0}
-              value={v.priceRupees}
-              onChange={(e) => updateVariant(i, { priceRupees: e.target.value })}
-            />
-            <input
-              className="admin-filter-bar__input"
-              placeholder="Unit label, e.g. / 500 ml jar"
-              value={v.unitLabel}
-              onChange={(e) => updateVariant(i, { unitLabel: e.target.value })}
-            />
-            <input
-              className="admin-filter-bar__input"
-              placeholder="Stock"
-              type="number"
-              min={0}
-              value={v.stockQuantity}
-              onChange={(e) => updateVariant(i, { stockQuantity: e.target.value })}
-            />
+            <label className="admin-controls-field">
+              <span>Size</span>
+              <input
+                className="admin-filter-bar__input"
+                placeholder="e.g. 500 ml"
+                value={v.sizeLabel}
+                onChange={(e) => updateVariant(i, { sizeLabel: e.target.value })}
+              />
+            </label>
+            <label className="admin-controls-field">
+              <span>SKU</span>
+              <input
+                className="admin-filter-bar__input"
+                value={v.sku}
+                onChange={(e) => updateVariant(i, { sku: e.target.value })}
+              />
+            </label>
+            <label className="admin-controls-field admin-controls-field--narrow">
+              <span>Price ₹</span>
+              <input
+                className="admin-filter-bar__input"
+                type="number"
+                min={0}
+                value={v.priceRupees}
+                onChange={(e) => updateVariant(i, { priceRupees: e.target.value })}
+              />
+            </label>
+            <label className="admin-controls-field">
+              <span>Unit label</span>
+              <input
+                className="admin-filter-bar__input"
+                placeholder="e.g. / 500 ml jar"
+                value={v.unitLabel}
+                onChange={(e) => updateVariant(i, { unitLabel: e.target.value })}
+              />
+            </label>
+            <label className="admin-controls-field admin-controls-field--narrow">
+              <span>Stock</span>
+              <input
+                className="admin-filter-bar__input"
+                type="number"
+                min={0}
+                value={v.stockQuantity}
+                onChange={(e) => updateVariant(i, { stockQuantity: e.target.value })}
+              />
+            </label>
             <label className="admin-controls-checkbox">
               <input type="checkbox" checked={v.isInStock} onChange={(e) => updateVariant(i, { isInStock: e.target.checked })} />
               In stock

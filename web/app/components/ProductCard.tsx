@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import type { Product } from "@/lib/products";
+import ImageLightbox from "./ImageLightbox";
 
 // Stops the click from bubbling up to the card's own onClick (which
 // navigates to the product page) — these buttons need their click to stay
@@ -23,23 +25,110 @@ function CardBody({ product }: { product: Product }) {
   const defaultVariantId = product.primaryVariantId;
   const qty = cart[defaultVariantId] || 0;
 
-  const imageStyle = product.image
-    ? { backgroundImage: `url('${product.image}')` }
+  // Same "cycle through images with prev/next + swipe" behavior as the PDP
+  // carousel (ProductHero.tsx) — product.images is never empty when
+  // product.image is set (see lib/products.ts's comment on the field), so
+  // this and the old single-image path render identically for a product
+  // with only one image.
+  const [imageIndex, setImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const hasImages = product.images.length > 0;
+  const activeImage = product.images[imageIndex];
+  const showNav = product.images.length > 1;
+  const goToImage = (i: number) => setImageIndex((i + product.images.length) % product.images.length);
+
+  const touchStartX = useRef<number | null>(null);
+  const handleImageTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  };
+  const handleImageTouchEnd = (e: React.TouchEvent) => {
+    const startX = touchStartX.current;
+    touchStartX.current = null;
+    if (startX === null) return;
+    const delta = e.changedTouches[0].clientX - startX;
+    // Below this, treat it as a tap and let onClick (open the lightbox)
+    // fire normally instead of hijacking it as a swipe.
+    if (Math.abs(delta) < 40) return;
+    e.preventDefault();
+    goToImage(imageIndex + (delta < 0 ? 1 : -1));
+  };
+
+  const imageStyle = activeImage
+    ? { backgroundImage: `url('${activeImage}')` }
     : undefined;
   const imageClass = product.gradient ? ` card__image--${product.gradient}` : "";
 
   return (
     <>
-      <Link href={`/products/${product.slug}`} className="card__image-link" onClick={stopCardNavigation}>
-        <div className={`card__image${imageClass}`} style={imageStyle}>
-          <span className={`card__pill card__pill--${product.badgeStyle ?? "light"}`}>
-            {product.badge}
-          </span>
-          {!product.image && (
-            <span className="card__image-title">{product.name}</span>
-          )}
-        </div>
-      </Link>
+      <div className="card__image-wrap">
+        {hasImages ? (
+          // A real photo opens the fullscreen carousel on click — the card
+          // still gets you to the PDP via the title link or the rest of
+          // the card body (see ProductCard's own onClick below).
+          <div
+            className="card__image-link"
+            onClick={(e) => {
+              stopCardNavigation(e);
+              setLightboxOpen(true);
+            }}
+            onTouchStart={showNav ? handleImageTouchStart : undefined}
+            onTouchEnd={showNav ? handleImageTouchEnd : undefined}
+          >
+            <div className={`card__image${imageClass}`} style={imageStyle}>
+              <span className={`card__pill card__pill--${product.badgeStyle ?? "light"}`}>
+                {product.badge}
+              </span>
+            </div>
+          </div>
+        ) : (
+          // No photo yet (gradient placeholder) — nothing for a lightbox
+          // to show, so the image area keeps its old job of linking to the
+          // PDP instead.
+          <Link href={`/products/${product.slug}`} className="card__image-link" onClick={stopCardNavigation}>
+            <div className={`card__image${imageClass}`}>
+              <span className={`card__pill card__pill--${product.badgeStyle ?? "light"}`}>
+                {product.badge}
+              </span>
+              <span className="card__image-title">{product.name}</span>
+            </div>
+          </Link>
+        )}
+        {showNav && (
+          <>
+            <button
+              type="button"
+              className="card__image-nav card__image-nav--prev"
+              aria-label="Previous image"
+              onClick={(e) => {
+                stopCardNavigation(e);
+                goToImage(imageIndex - 1);
+              }}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="card__image-nav card__image-nav--next"
+              aria-label="Next image"
+              onClick={(e) => {
+                stopCardNavigation(e);
+                goToImage(imageIndex + 1);
+              }}
+            >
+              ›
+            </button>
+          </>
+        )}
+      </div>
+      {lightboxOpen && (
+        <ImageLightbox
+          images={product.images}
+          index={imageIndex}
+          productName={product.name}
+          onIndexChange={setImageIndex}
+          onClose={() => setLightboxOpen(false)}
+        />
+      )}
       <div className="card__body">
         <div className="card__category">{product.category}</div>
         <h3 className="card__name">

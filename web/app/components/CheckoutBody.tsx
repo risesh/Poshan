@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart } from "@/lib/cart-context";
 import { useAuth } from "@/lib/auth-context";
@@ -849,6 +850,9 @@ export default function CheckoutBody({
 
       <div className="checkout-body">
         <div className="checkout-body__left">
+          <Link href="/cart" className="checkout-back-link">
+            ← Back to cart
+          </Link>
           <div className="checkout-section-label">Contact</div>
           <div className="checkout-field-group">
             <span className="checkout-field-label">Email</span>
@@ -1311,17 +1315,29 @@ export default function CheckoutBody({
             <h2 id="cod-confirm-title" className="cod-confirm-modal__title">Confirm your order</h2>
 
             <div className="cod-confirm-modal__section">
-              {pricing.items.map((item) => (
-                <div className="cart-item cart-item--compact" key={item.variantId}>
-                  <div>
-                    <div className="cart-item__name">{item.productName}</div>
-                    <div className="cart-item__size">
-                      {item.variantLabel} · Qty {item.qty}
+              {pricing.items.map((item) => {
+                // cart-item--compact's grid is 3 columns (thumb/name/price)
+                // — omitting the thumbnail here (as this modal originally
+                // did) squeezed the name into that 52px first column
+                // instead of leaving it out of the grid entirely.
+                const hit = variantLookup?.get(item.variantId);
+                const product = hit?.product;
+                const imageStyle = product?.image
+                  ? { backgroundImage: `url('${product.image}')`, backgroundSize: "cover", backgroundPosition: "center" }
+                  : { background: product?.thumbGradient };
+                return (
+                  <div className="cart-item cart-item--compact" key={item.variantId}>
+                    <div className="cart-item__thumb" style={imageStyle}></div>
+                    <div>
+                      <div className="cart-item__name">{item.productName}</div>
+                      <div className="cart-item__size">
+                        {item.variantLabel} · Qty {item.qty}
+                      </div>
                     </div>
+                    <span className="cart-item__price">{formatRupees(item.lineTotalRupees)}</span>
                   </div>
-                  <span className="cart-item__price">{formatRupees(item.lineTotalRupees)}</span>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="cart-summary__total cod-confirm-modal__total">

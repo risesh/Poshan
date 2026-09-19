@@ -140,22 +140,33 @@ export default function CartPageBody() {
               const { product, variant } = hit;
               return (
                 <div className="cart-item" key={id}>
-                  <div
-                    className="cart-item__thumb"
-                    style={{ background: product.thumbGradient }}
-                  >
+                  {product.image ? (
                     <div
-                      className="cart-item__thumb-name"
-                      style={{ fontSize: product.thumbNameSize }}
+                      className="cart-item__thumb"
+                      style={{
+                        backgroundImage: `url('${product.image}')`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                      }}
+                    />
+                  ) : (
+                    <div
+                      className="cart-item__thumb"
+                      style={{ background: product.thumbGradient }}
                     >
-                      {product.thumbNameLines.map((line, i) => (
-                        <span key={i}>
-                          {i > 0 && <br />}
-                          {line}
-                        </span>
-                      ))}
+                      <div
+                        className="cart-item__thumb-name"
+                        style={{ fontSize: product.thumbNameSize }}
+                      >
+                        {product.thumbNameLines.map((line, i) => (
+                          <span key={i}>
+                            {i > 0 && <br />}
+                            {line}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )}
                   <div>
                     <div className="cart-item__badge">{product.cartBadge}</div>
                     <div className="cart-item__name">{product.name}</div>
@@ -249,7 +260,7 @@ export default function CartPageBody() {
             <ul className="cart-summary__shipping-note cart-summary__shipping-note--list">
               <li>Minimum order value – ₹250</li>
               <li>Free shipping under 5km, ₹10 extra per km above 5km</li>
-              <li>Free delivery for order values above ₹1000</li>
+              <li>Free delivery for order values above ₹500</li>
             </ul>
           </aside>
         </div>

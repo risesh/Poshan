@@ -119,6 +119,51 @@ a { color: inherit; }
 
 .nav__link:hover { color: var(--color-teal); }
 
+.nav__link--cart-filled {
+  font-weight: 700;
+  font-size: 13.1px; /* nav__link's 12.1px, +1pt */
+}
+
+/* Bottom-right FAB, shown whenever the cart has items — mirrors the nav
+   cart link so it's reachable without opening the hamburger menu on
+   mobile, where the nav cart link is hidden inside nav__links. */
+.cart-fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: var(--color-bone);
+  box-shadow: 0 4px 16px rgba(30, 58, 52, 0.32);
+  transition: 0.2s ease;
+}
+
+.cart-fab:hover { background: #2a5249; }
+
+.cart-fab__count {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 10px;
+  background: var(--color-turmeric);
+  color: var(--color-ink);
+  font-family: var(--font-display);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .nav__signin {
   font-family: var(--font-display);
   font-size: 12.1px;
@@ -524,9 +569,38 @@ a { color: inherit; }
   margin-top: 2px;
 }
 
+.card__image-wrap {
+  position: relative;
+}
+
 .card__image-link {
   display: block;
 }
+
+/* PLP image carousel controls — only rendered when a product has more than
+   one image (see ProductCard.tsx). Same pattern as the PDP's
+   .product-hero__image-nav, scaled down for the card's smaller image. */
+.card__image-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(30, 58, 52, 0.45);
+  color: var(--color-bone);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.card__image-nav:hover { background: rgba(30, 58, 52, 0.65); }
+.card__image-nav--prev { left: 8px; }
+.card__image-nav--next { right: 8px; }
 
 .card__name-link {
   color: inherit;
@@ -996,6 +1070,7 @@ a { color: inherit; }
   position: relative;
   overflow: hidden;
   box-sizing: border-box;
+  cursor: pointer; /* opens the fullscreen lightbox (ImageLightbox.tsx) */
 }
 
 /* .product-hero__image--photo has no shared background rule — the photo
@@ -1084,6 +1159,113 @@ a { color: inherit; }
 
 .product-hero__image-dot.is-active {
   background: var(--color-bone);
+}
+
+/* Fullscreen photo viewer (ImageLightbox.tsx) — opened by clicking a
+   product image on the PLP card or the PDP hero. Portaled to document.body
+   (see the component's comment on why), so this isn't scoped under
+   .product-hero/.card the way the inline carousel controls above are. */
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(30, 58, 52, 0.94);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 20px 20px;
+}
+
+.image-lightbox__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(245, 240, 230, 0.14);
+  color: var(--color-bone);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-lightbox__close:hover { background: rgba(245, 240, 230, 0.28); }
+
+.image-lightbox__stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-width: 900px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-lightbox__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.image-lightbox__nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(245, 240, 230, 0.14);
+  color: var(--color-bone);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.image-lightbox__nav:hover { background: rgba(245, 240, 230, 0.28); }
+.image-lightbox__nav--prev { left: 8px; }
+.image-lightbox__nav--next { right: 8px; }
+
+.image-lightbox__dots {
+  /* Overlaid on the image's own bottom edge rather than placed below the
+     stage — the stage already fills the lightbox's full padded height, so
+     "below it" would render off the bottom of the viewport on short
+     screens instead of inside the visible dialog. */
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: rgba(30, 58, 52, 0.45);
+  padding: 6px 10px;
+  border-radius: var(--radius-pill);
+}
+
+.image-lightbox__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1px solid var(--color-bone);
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.image-lightbox__dot.is-active {
+  background: var(--color-bone);
+}
+
+@media (max-width: 640px) {
+  .image-lightbox__nav { width: 36px; height: 36px; font-size: 20px; }
 }
 
 .product-info {
@@ -1585,7 +1767,7 @@ a { color: inherit; }
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-teal);
-  text-decoration: none;
+  text-decoration: underline;
 }
 
 .cart-summary {
@@ -2493,7 +2675,7 @@ a { color: inherit; }
   .policy-hero__title { font-size: 32px; }
 
   .product-hero__grid { grid-template-columns: 1fr; gap: 32px; }
-  .product-hero__image { aspect-ratio: 20 / 9; } /* was 16/9 — 20% shorter, same width */
+  .product-hero__image { aspect-ratio: 40 / 33; } /* was 4/3 — same width, 10% taller (4/3 ÷ 1.1) per a follow-up request for more vertical space on mobile specifically */
   .product-info { padding-top: 0; }
   .product-info__title { font-size: 36px; }
   .product-panel__grid { grid-template-columns: 1fr; }
@@ -2622,6 +2804,17 @@ a { color: inherit; }
   box-sizing: border-box;
   background: #EFE9DD;
   min-width: 340px;
+}
+
+.checkout-back-link {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-size: 12.1px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-teal);
+  text-decoration: underline;
+  margin-bottom: 24px;
 }
 
 .checkout-section-label {
@@ -3194,8 +3387,18 @@ a { color: inherit; }
 .cart-item--compact .cart-item__size,
 .cart-item--compact-lg .cart-item__size { margin-bottom: 0; }
 
-.cart-item--compact .cart-item__price { font-size: 15.4px; }
-.cart-item--compact-lg .cart-item__price { font-size: 15.4px; }
+/* Resets the <=640px .cart-item__price override (grid-column: 1/-1,
+   left-aligned — meant for the full /cart page's 2-column mobile layout,
+   see that media query) back to sitting in its own column on the same
+   row. Without this, the compact row's container correctly stays 3
+   columns at any width, but the price still tried to span full-row and
+   got auto-placed onto a second row by itself. */
+.cart-item--compact .cart-item__price,
+.cart-item--compact-lg .cart-item__price {
+  font-size: 15.4px;
+  grid-column: auto;
+  text-align: right;
+}
 
 .confirm-hero {
   background: linear-gradient(135deg, #1E3A34 0%, #2a5249 45%, #4A9B8E 100%);
@@ -3622,6 +3825,7 @@ a { color: inherit; }
 .admin-filter-bar {
   display: flex;
   align-items: flex-end;
+  flex-wrap: wrap;
   gap: 16px;
   margin-bottom: 20px;
 }
@@ -3655,6 +3859,13 @@ a { color: inherit; }
 
 .admin-filter-bar__input:focus { border-color: var(--color-teal); }
 
+.admin-filter-bar__field--search {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.admin-filter-bar__field--search .admin-filter-bar__input { width: 100%; box-sizing: border-box; }
+
 .admin-filter-bar__apply {
   font-family: var(--font-display);
   font-size: 11px;
@@ -3671,8 +3882,16 @@ a { color: inherit; }
 
 .admin-orders-summary {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 48px;
   margin-bottom: 20px;
+}
+
+.admin-orders-export-btn {
+  margin-left: auto;
+  text-decoration: none;
+  display: inline-block;
 }
 
 .admin-orders-list { display: flex; flex-direction: column; gap: 12px; }
@@ -3885,7 +4104,16 @@ a { color: inherit; }
 
 .admin-controls-table__head {
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr 1fr auto;
+  /* Last column is a fixed width, not auto, on purpose — it must match
+     .admin-controls-product-row__main's last column exactly. auto sizes to
+     that column's own content, and the header's last cell is empty while
+     the row's holds the reorder/Edit/Delete cluster; mixing auto with fr
+     tracks means the browser carves auto's width out first and only
+     divides the *remainder* across the fr columns, so two grids with
+     "identical" fr values but different auto content end up with
+     differently-sized fr columns — Enabled/Listed drifting right of the
+     toggles they're supposed to label. */
+  grid-template-columns: 2fr 1fr 0.6fr 0.6fr 1fr 200px;
   gap: 12px;
   padding: 0 0 10px;
   border-bottom: 1px solid var(--border-color);
@@ -3896,7 +4124,7 @@ a { color: inherit; }
   color: rgba(30, 58, 52, 0.5);
 }
 
-.admin-controls-table__head--promo { grid-template-columns: 1fr 1.4fr 1.6fr 1fr 1.4fr; }
+.admin-controls-table__head--promo { grid-template-columns: 0.7fr 1fr 1.4fr 1.6fr 1fr 1.4fr; }
 
 .admin-controls-table__row {
   display: grid;
@@ -3909,7 +4137,7 @@ a { color: inherit; }
   color: var(--color-ink);
 }
 
-.admin-controls-table__row--promo { grid-template-columns: 1fr 1.4fr 1.6fr 1fr 1.4fr; }
+.admin-controls-table__row--promo { grid-template-columns: 0.7fr 1fr 1.4fr 1.6fr 1fr 1.4fr; }
 
 .admin-controls-promo-code { font-family: var(--font-mono); letter-spacing: 0.04em; }
 
@@ -3960,7 +4188,10 @@ a { color: inherit; }
    clickable anywhere, not just on the name text. */
 .admin-controls-product-row__main {
   display: grid;
-  grid-template-columns: 2fr 1fr 0.6fr 1fr auto;
+  /* Kept in sync with .admin-controls-table__head's column widths — see
+     that rule's comment on why the last column is a fixed 200px, not
+     auto. */
+  grid-template-columns: 2fr 1fr 0.6fr 0.6fr 1fr 200px;
   align-items: center;
   gap: 12px;
   cursor: pointer;
@@ -3998,7 +4229,7 @@ a { color: inherit; }
 
 .admin-controls-variant-row {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1.2fr auto;
+  grid-template-columns: 0.8fr 1fr 1fr 1fr 1.2fr auto;
   align-items: center;
   gap: 12px;
   font-family: var(--font-mono);
@@ -4129,6 +4360,8 @@ a { color: inherit; }
   border-radius: var(--radius-button);
 }
 
+.admin-controls-variant-form-row { align-items: flex-end; }
+
 .admin-controls-remove-btn {
   background: none;
   border: 1px solid rgba(30, 58, 52, 0.48);
@@ -4143,6 +4376,22 @@ a { color: inherit; }
 
 .admin-controls-remove-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+.admin-controls-delete-btn {
+  background: none;
+  border: 1px solid rgba(193, 80, 46, 0.4);
+  border-radius: var(--radius-button);
+  padding: 4px 10px;
+  font-family: var(--font-display);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-sindoor);
+  cursor: pointer;
+}
+
+.admin-controls-delete-btn:hover { border-color: var(--color-sindoor); }
+.admin-controls-delete-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
 .admin-controls-add-btn {
   align-self: flex-start;
   background: none;
@@ -4155,6 +4404,60 @@ a { color: inherit; }
   color: var(--color-teal);
   cursor: pointer;
 }
+
+.admin-controls-field-note {
+  font-family: var(--font-display);
+  font-size: 12.1px;
+  color: rgba(30, 58, 52, 0.6);
+  margin: -4px 0 12px;
+  line-height: 1.5;
+}
+
+.admin-controls-image-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.admin-controls-image-thumb {
+  width: 110px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-controls-image-thumb__preview {
+  width: 110px;
+  height: 110px;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--border-color);
+  background-color: var(--color-bone);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.admin-controls-image-thumb__actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.admin-controls-reorder-btn {
+  background: none;
+  border: 1px solid rgba(30, 58, 52, 0.48);
+  border-radius: 50%;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--color-ink);
+  flex-shrink: 0;
+}
+
+.admin-controls-reorder-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
 .admin-controls-scope-toggle { display: flex; gap: 4px; margin-bottom: 10px; }
 

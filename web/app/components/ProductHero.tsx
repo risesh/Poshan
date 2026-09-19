@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useCart } from "@/lib/cart-context";
 import type { Product, Variant } from "@/lib/products";
+import ImageLightbox from "./ImageLightbox";
 
 // size_label is free text ("500 ml" | "1 L" | "250 g" | "1 kg" — see
 // supabase/migrations/0001_init.sql) with no separate numeric column, so
@@ -59,6 +60,7 @@ export default function ProductHero({ product }: { product: Product }) {
   // Independent of `selected` (the variant) — images are per-product, not
   // per-size, so switching sizes never touches this.
   const [imageIndex, setImageIndex] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const activeImage = product.images[imageIndex];
 
   const imageStyle = activeImage
@@ -75,7 +77,11 @@ export default function ProductHero({ product }: { product: Product }) {
   return (
     <section className="product-hero">
       <div className="product-hero__grid">
-        <div className={`product-hero__image${imageClass}`} style={imageStyle}>
+        <div
+          className={`product-hero__image${imageClass}`}
+          style={imageStyle}
+          onClick={() => product.images.length > 0 && setLightboxOpen(true)}
+        >
           <div className="product-hero__image-top">
             <span className={`card__pill card__pill--${product.badgeStyle ?? "light"}`}>
               {product.badge}
@@ -92,9 +98,10 @@ export default function ProductHero({ product }: { product: Product }) {
                 type="button"
                 className="product-hero__image-nav product-hero__image-nav--prev"
                 aria-label="Previous image"
-                onClick={() =>
-                  setImageIndex((i) => (i - 1 + product.images.length) % product.images.length)
-                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageIndex((i) => (i - 1 + product.images.length) % product.images.length);
+                }}
               >
                 ‹
               </button>
@@ -102,7 +109,10 @@ export default function ProductHero({ product }: { product: Product }) {
                 type="button"
                 className="product-hero__image-nav product-hero__image-nav--next"
                 aria-label="Next image"
-                onClick={() => setImageIndex((i) => (i + 1) % product.images.length)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageIndex((i) => (i + 1) % product.images.length);
+                }}
               >
                 ›
               </button>
@@ -113,13 +123,26 @@ export default function ProductHero({ product }: { product: Product }) {
                     type="button"
                     className={`product-hero__image-dot${i === imageIndex ? " is-active" : ""}`}
                     aria-label={`Show image ${i + 1} of ${product.images.length}`}
-                    onClick={() => setImageIndex(i)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setImageIndex(i);
+                    }}
                   />
                 ))}
               </div>
             </>
           )}
         </div>
+
+        {lightboxOpen && (
+          <ImageLightbox
+            images={product.images}
+            index={imageIndex}
+            productName={product.name}
+            onIndexChange={setImageIndex}
+            onClose={() => setLightboxOpen(false)}
+          />
+        )}
 
         <div className="product-info">
           <div className="product-info__pills">
