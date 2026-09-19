@@ -46,7 +46,7 @@ We are not responsible if your package gets lost or gets sent back because of an
 Because our foods are perishable, we cannot accept returns of opened items. If a jar arrives damaged, leaking, or spoiled, contact us within 6 hours of delivery with a photo and we will replace it or refund you in full. The refund/return will be processed within 3 working days of the return submission.
 
 ## Questions
-Write to us at lifeposhan@gmail.com or Whatsapp us at +91 79824 14408 — we do our best to try to respond within one business day.
+Write to us at lifeposhan@gmail.com or Whatsapp us at +91 96466 18898 — we do our best to try to respond within one business day.
 
 
 ==================================================
@@ -124,7 +124,7 @@ We use encryption for payment data in transit, limit internal access to your dat
 Our services are meant for adults. We do not knowingly collect personal data from anyone under 18.
 
 ## Your choices
-You may ask us to access, correct, or delete your personal data at any time. Whatsapp us at +91 79824 14408 or write to us at lifeposhan@gmail.com and we will act within 30 days.
+You may ask us to access, correct, or delete your personal data at any time. Whatsapp us at +91 96466 18898 or write to us at lifeposhan@gmail.com and we will act within 30 days.
 
 ## Questions or complaints about your data
 For any privacy-related request or complaint, write to us at lifeposhan@gmail.com. We will respond within 30 days, in line with the Digital Personal Data Protection Act, 2023.

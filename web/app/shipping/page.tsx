@@ -57,7 +57,7 @@ export default function ShippingPage() {
               Free shipping under 5km. An extra Rs 10 per km as delivery fee for any
               distance above 5km
             </li>
-            <li>Free delivery for any order above Rs 1000 in value</li>
+            <li>Free delivery for any order above Rs 500 in value</li>
             <li>
               Currently we only ship in Bangalore. We will refund any orders placed
               from outside of Bangalore
@@ -88,7 +88,7 @@ export default function ShippingPage() {
 
           <h2>Questions</h2>
           <p>
-            Write to us at lifeposhan@gmail.com or Whatsapp us at +91 79824 14408 — we
+            Write to us at lifeposhan@gmail.com or Whatsapp us at +91 96466 18898 — we
             do our best to try to respond within one business day.
           </p>
         </div>

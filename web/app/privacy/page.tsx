@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           <h2>Your choices</h2>
           <p>
             You may ask us to access, correct, or delete your personal data at any
-            time. Whatsapp us at +91 79824 14408 or write to us at
+            time. Whatsapp us at +91 96466 18898 or write to us at
             lifeposhan@gmail.com and we will act within 30 days.
           </p>
 

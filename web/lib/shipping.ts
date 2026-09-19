@@ -23,12 +23,12 @@ export function distanceFromFulfillmentCenterKm(lat: number, lng: number): numbe
 // before location search existed at all.
 const FALLBACK_SHIPPING_RUPEES = 50;
 
-// Free above ₹1000 subtotal regardless of distance; below that, free under
+// Free above ₹500 subtotal regardless of distance; below that, free under
 // 5km, then ₹10 per additional km — any partial km counts as a full one.
 // distanceKm is null when the address has no lat/lng at all, not just when
 // it happens to be a nearby/free-tier distance — see FALLBACK_SHIPPING_RUPEES.
 export function computeShippingRupees(subtotalRupees: number, distanceKm: number | null): number {
-  if (subtotalRupees > 1000) return 0;
+  if (subtotalRupees > 500) return 0;
   if (distanceKm === null) return FALLBACK_SHIPPING_RUPEES;
   if (distanceKm < 5) return 0;
   return Math.ceil(distanceKm - 5) * 10;

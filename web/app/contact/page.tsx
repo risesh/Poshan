@@ -24,7 +24,7 @@ export default function ContactPage() {
         <div className="policy-content__inner">
           <div className="contact-options">
             <a
-              href="https://wa.me/917982414408?text=Hi%2C%20I%20have%20a%20question%20for%20you%20-%20"
+              href="https://wa.me/919646618898?text=Hi%2C%20I%20have%20a%20question%20for%20you%20-%20"
               className="contact-option"
               target="_blank"
               rel="noopener noreferrer"
@@ -37,7 +37,7 @@ export default function ContactPage() {
               </span>
               <span>
                 <span className="contact-option__title">Chat on WhatsApp</span>
-                <span className="contact-option__detail">+91 79824 14408</span>
+                <span className="contact-option__detail">+91 96466 18898</span>
               </span>
             </a>
 
