@@ -4,6 +4,7 @@ import { lookupPromoCode } from "./promo";
 import { fetchVariantsByIds } from "./products";
 import { getAddressCoordinates, distanceFromFulfillmentCenterKm } from "./shipping";
 import { notifyAdminsOfNewOrder } from "./notify-admins";
+import { notifyCustomerOfNewOrder } from "./notify-customer";
 
 type PaymentInfo =
   | { method: "cod" }
@@ -76,6 +77,7 @@ export async function createOrder(
   // promo_codes.promo_id (0017_item_and_promo_ids.sql), so no
   // collision-retry loop is needed the way the old client-generated random
   // PSN-NNNNN number required.
+  const estimatedDelivery = estimatedDeliveryDate();
   const { data, error } = await supabase
     .from("orders")
     .insert({
@@ -89,7 +91,7 @@ export async function createOrder(
       shipping_rupees: totals.shippingRupees,
       discount_rupees: totals.discountRupees,
       total_rupees: totals.totalRupees,
-      estimated_delivery: estimatedDeliveryDate(),
+      estimated_delivery: estimatedDelivery,
     })
     .select("id, order_number")
     .single();
@@ -116,12 +118,66 @@ export async function createOrder(
 
   if (itemsError) throw itemsError;
 
+  // Both notifications below need display details neither the insert above
+  // already has — the profile (for name/email) and the delivery address
+  // (for the shipping block in each email). Fetched once, up front, with
+  // the caller's own RLS-scoped client, same as everything else in this
+  // function; a user can always read their own profile/address rows.
+  const [{ data: profile }, { data: address }] = await Promise.all([
+    supabase.from("profiles").select("name, email").eq("id", userId).single(),
+    supabase
+      .from("addresses")
+      .select("recipient_name, line1, line2, city, state, postal_code")
+      .eq("id", addressId)
+      .single(),
+  ]);
+
+  const notificationItems = totals.items.map((item) => ({
+    productName: item.productName,
+    variantLabel: item.variantLabel,
+    qty: item.qty,
+    lineTotalRupees: item.lineTotalRupees,
+  }));
+  const notificationAddress = address
+    ? {
+        recipientName: address.recipient_name,
+        line1: address.line1,
+        line2: address.line2,
+        city: address.city,
+        state: address.state,
+        postalCode: address.postal_code,
+      }
+    : null;
+
   // Best-effort — see notify-admins.ts, this can never throw/break checkout.
+  // Sent even if profile/address failed to load above (falls back to "—"
+  // in the email) — an admin still needs to know an order came in.
   await notifyAdminsOfNewOrder({
     orderNumber,
     totalRupees: totals.totalRupees,
     paymentMethod: payment.method,
+    customerName: profile?.name ?? profile?.email ?? "—",
+    items: notificationItems,
+    estimatedDelivery,
+    address: notificationAddress,
   });
+
+  if (profile && address && notificationAddress) {
+    // Best-effort — see notify-customer.ts, this can never throw/break checkout.
+    await notifyCustomerOfNewOrder({
+      to: profile.email,
+      customerName: profile.name ?? profile.email,
+      orderNumber,
+      items: notificationItems,
+      subtotalRupees: totals.subtotalRupees,
+      shippingRupees: totals.shippingRupees,
+      discountRupees: totals.discountRupees,
+      totalRupees: totals.totalRupees,
+      paymentMethod: payment.method,
+      estimatedDelivery,
+      address: notificationAddress,
+    });
+  }
 
   return { orderId, orderNumber };
 }

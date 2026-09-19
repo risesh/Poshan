@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { ADMIN_EMAILS } from "./admin";
+import { ORDER_NOTIFICATION_EMAILS } from "./admin";
 
 const PAYMENT_LABEL: Record<string, string> = {
   cod: "Cash on Delivery",
@@ -8,10 +8,32 @@ const PAYMENT_LABEL: Record<string, string> = {
   netbanking: "Netbanking",
 };
 
+type NewOrderItem = {
+  productName: string;
+  variantLabel: string;
+  qty: number;
+};
+
+type NewOrderAddress = {
+  recipientName: string;
+  line1: string;
+  line2: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+};
+
 type NewOrderNotification = {
   orderNumber: number;
   totalRupees: number;
   paymentMethod: string;
+  customerName: string;
+  items: NewOrderItem[];
+  estimatedDelivery: string;
+  // null when create-order.ts's profile/address lookup itself failed —
+  // still send the rest of the notification rather than dropping it
+  // entirely just because the shipping block can't be filled in.
+  address: NewOrderAddress | null;
 };
 
 // Best-effort admin email for a new order — never allowed to break
@@ -28,15 +50,33 @@ export async function notifyAdminsOfNewOrder(order: NewOrderNotification): Promi
     const total = `₹${order.totalRupees.toLocaleString("en-IN")}`;
     const ordersUrl = `${process.env.NEXT_PUBLIC_SITE_URL}/admin/orders`;
 
+    const itemsBlock = order.items
+      .map((item) => `${item.productName} (${item.variantLabel}) × ${item.qty}`)
+      .join("<br />");
+
+    const addressBlock = order.address
+      ? `${order.address.recipientName}<br />${order.address.line1}${order.address.line2 ? `, ${order.address.line2}` : ""}<br />${order.address.city}, ${order.address.state} ${order.address.postalCode}`
+      : "—";
+
     await resend.emails.send({
       from,
-      to: ADMIN_EMAILS,
+      to: ORDER_NOTIFICATION_EMAILS,
       subject: `New order #${order.orderNumber} — ${total}`,
       html: `
         <p>New order <strong>#${order.orderNumber}</strong> just came in.</p>
         <p>
+          Customer: ${order.customerName}<br />
           Total: ${total}<br />
-          Payment: ${PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}
+          Payment: ${PAYMENT_LABEL[order.paymentMethod] ?? order.paymentMethod}<br />
+          Estimated delivery: ${order.estimatedDelivery}
+        </p>
+        <p>
+          Items:<br />
+          ${itemsBlock}
+        </p>
+        <p>
+          Delivering to:<br />
+          ${addressBlock}
         </p>
         <p><a href="${ordersUrl}">View in admin →</a></p>
       `,
