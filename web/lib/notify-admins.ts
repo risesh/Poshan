@@ -9,7 +9,7 @@ const PAYMENT_LABEL: Record<string, string> = {
 };
 
 type NewOrderNotification = {
-  orderNumber: string;
+  orderNumber: number;
   totalRupees: number;
   paymentMethod: string;
 };

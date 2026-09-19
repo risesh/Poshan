@@ -6,20 +6,10 @@ import {
   getPaymentMethodBreakdown,
   getOrderStatusBreakdown,
 } from "@/lib/admin-data";
+import { istStartOfMonth, istStartOfQuarter, istStartOfYear } from "@/lib/order-math";
 import AdminCharts from "./AdminCharts";
 
 export const metadata = { title: "Dashboard" };
-
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function startOfQuarter(d: Date) {
-  const q = Math.floor(d.getMonth() / 3);
-  return new Date(d.getFullYear(), q * 3, 1);
-}
-function startOfYear(d: Date) {
-  return new Date(d.getFullYear(), 0, 1);
-}
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient();
@@ -27,12 +17,12 @@ export default async function AdminDashboardPage() {
 
   const [summary, skuMtd, skuQtd, skuYtd, trend, paymentBreakdown, statusBreakdown] = await Promise.all([
     getRevenueSummary(supabase),
-    getRevenueBySku(supabase, startOfMonth(now)),
-    getRevenueBySku(supabase, startOfQuarter(now)),
-    getRevenueBySku(supabase, startOfYear(now)),
+    getRevenueBySku(supabase, istStartOfMonth(now)),
+    getRevenueBySku(supabase, istStartOfQuarter(now)),
+    getRevenueBySku(supabase, istStartOfYear(now)),
     getDailyRevenueTrend(supabase, 30),
-    getPaymentMethodBreakdown(supabase, startOfMonth(now)),
-    getOrderStatusBreakdown(supabase, startOfMonth(now)),
+    getPaymentMethodBreakdown(supabase, istStartOfMonth(now)),
+    getOrderStatusBreakdown(supabase, istStartOfMonth(now)),
   ]);
 
   return (

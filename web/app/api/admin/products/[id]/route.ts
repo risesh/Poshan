@@ -64,10 +64,35 @@ export async function PATCH(request: Request, props: RouteContext<"/api/admin/pr
     return NextResponse.json({ error: "Not authorized" }, { status: 403 });
   }
 
-  const body = (await request.json()) as { isInStock?: boolean } & FullEditBody;
+  const body = (await request.json()) as { isInStock?: boolean; isListed?: boolean } & FullEditBody;
 
   if (Object.keys(body).length === 1 && typeof body.isInStock === "boolean") {
     const { error } = await supabase.from("products").update({ is_instock: body.isInStock }).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+
+    // Turning the master switch off cascades to every variant, not just
+    // the storefront read (lib/products.ts ANDs row.is_instock into each
+    // variant's isInStock regardless) — this keeps the admin's own variant
+    // toggles truthful instead of quietly showing "on" for sizes nothing
+    // can actually buy. Turning it back on deliberately does NOT cascade
+    // the other way — re-enabling the product shouldn't silently resurrect
+    // every size as purchasable again; each has to be turned back on.
+    if (body.isInStock === false) {
+      const { error: variantsError } = await supabase
+        .from("product_variants")
+        .update({ is_instock: false })
+        .eq("product_id", id);
+      if (variantsError) return NextResponse.json({ error: variantsError.message }, { status: 400 });
+    }
+
+    return NextResponse.json({ ok: true });
+  }
+
+  // Same lightweight shortcut as isInStock above, for the "Listed" toggle
+  // (0018_product_is_listed.sql) — hides/unhides the product from the
+  // storefront entirely without touching anything else about it.
+  if (Object.keys(body).length === 1 && typeof body.isListed === "boolean") {
+    const { error } = await supabase.from("products").update({ is_listed: body.isListed }).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 400 });
     return NextResponse.json({ ok: true });
   }

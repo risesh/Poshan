@@ -155,7 +155,14 @@ function mapRowToProduct(row: ProductRow): Product {
     size: v.size_label,
     priceRupees: v.price_rupees,
     unitLabel: v.unit_label,
-    isInStock: v.is_instock && v.stock_quantity > 0,
+    // ANDed with the product's own master flag, not just this variant's —
+    // otherwise a disabled product (row.is_instock = false) with a variant
+    // whose own is_instock/stock_quantity still look fine would render as
+    // out-of-stock on the PLP grid (which reads the combined `inStock`
+    // below) but still show that size as selectable/purchasable here on
+    // the PDP (ProductHero.tsx reads variant.isInStock directly) — the two
+    // pages disagreeing about the same product.
+    isInStock: row.is_instock && v.is_instock && v.stock_quantity > 0,
   }));
   // Nutrition is only ever populated on the sort_order-0 variant row (see
   // 0005_product_catalog_fields.sql's migration note) — stays tied to that
@@ -171,7 +178,8 @@ function mapRowToProduct(row: ProductRow): Product {
   // is unavailable (the fully-out-of-stock case, where it doesn't matter
   // which one is shown since Add is disabled regardless).
   const availableRow =
-    sortedVariantRows.find((v) => v.is_instock && v.stock_quantity > 0) ?? sortedVariantRows[0];
+    (row.is_instock && sortedVariantRows.find((v) => v.is_instock && v.stock_quantity > 0)) ||
+    sortedVariantRows[0];
 
   const images =
     row.product_images.length > 0
@@ -230,7 +238,15 @@ export async function getAllProducts(supabase: SupabaseClient): Promise<Product[
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
-    .order("created_at");
+    // is_listed (0018_product_is_listed.sql) — a temporarily-hidden
+    // product is excluded here entirely, not just shown disabled like
+    // is_instock=false is; the admin Controls tab's own getAdminProductList
+    // (lib/admin-data.ts) deliberately does NOT filter on this, since an
+    // admin needs to see a hidden product to un-hide it again.
+    .eq("is_listed", true)
+    // Admin-controlled merchandising order (0016_product_sort_order.sql),
+    // not creation order — see ProductsManager.tsx's reorder buttons.
+    .order("sort_order");
   if (error) throw error;
   return ((data ?? []) as unknown as ProductRow[]).map(mapRowToProduct);
 }
@@ -243,6 +259,10 @@ export async function getProductBySlug(
     .from("products")
     .select(PRODUCT_SELECT)
     .eq("slug", slug)
+    // Same is_listed rule as getAllProducts — a hidden product's direct
+    // page URL 404s (via this returning undefined, see the [slug] page's
+    // notFound() call) instead of staying reachable once it's off the grid.
+    .eq("is_listed", true)
     .maybeSingle();
   if (error) throw error;
   if (!data) return undefined;
@@ -263,7 +283,7 @@ export async function fetchVariantsByIds(
   const { data, error } = await supabase
     .from("product_variants")
     .select(
-      "id, size_label, price_rupees, unit_label, is_instock, stock_quantity, products ( id, name, image_url, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size, product_images ( image_url, sort_order ) )"
+      "id, size_label, price_rupees, unit_label, is_instock, stock_quantity, products ( id, name, image_url, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size, is_instock, product_images ( image_url, sort_order ) )"
     )
     .in("id", uniqueIds);
   if (error) throw error;
@@ -283,6 +303,7 @@ export async function fetchVariantsByIds(
       thumb_gradient: string;
       thumb_name_lines: string[];
       thumb_name_size: string;
+      is_instock: boolean;
       product_images: ProductImageRow[];
     } | null;
   };
@@ -312,7 +333,13 @@ export async function fetchVariantsByIds(
         size: row.size_label,
         priceRupees: row.price_rupees,
         unitLabel: row.unit_label,
-        isInStock: row.is_instock && row.stock_quantity > 0,
+        // ANDed with the product's own master flag — see mapRowToProduct's
+        // matching comment. This is the one that actually matters: without
+        // it, computeCartPricing (lib/order-math.ts) would let an order go
+        // through for a variant whose own is_instock/stock_quantity still
+        // look fine even though the product itself was disabled, not just
+        // a display glitch on the storefront.
+        isInStock: row.products.is_instock && row.is_instock && row.stock_quantity > 0,
       },
     });
   }

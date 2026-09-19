@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { istStartOfMonth, istStartOfQuarter, istStartOfYear, istDateString, istDayStart } from "./order-math";
 
 // Server-only data-fetching for /admin. Every query here relies on the
 // admin-only RLS policies in supabase/migrations/0003_admin_access.sql —
@@ -7,7 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 type OrderRow = {
   id: string;
-  order_number: string;
+  order_number: number;
   created_at: string;
   total_rupees: number;
   order_status: string;
@@ -21,17 +22,6 @@ type OrderRow = {
 // the payment method/status chart, rather than folded into what "revenue"
 // means.
 const CANCELLED = "cancelled";
-
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1);
-}
-function startOfQuarter(d: Date) {
-  const q = Math.floor(d.getMonth() / 3);
-  return new Date(d.getFullYear(), q * 3, 1);
-}
-function startOfYear(d: Date) {
-  return new Date(d.getFullYear(), 0, 1);
-}
 
 async function getOrdersSince(supabase: SupabaseClient, since: Date): Promise<OrderRow[]> {
   const { data, error } = await supabase
@@ -49,12 +39,14 @@ export type RevenueSummary = { mtd: PeriodSummary; qtd: PeriodSummary; ytd: Peri
 
 // YTD's window is a superset of MTD/QTD, so one query (the widest range)
 // covers all three — sliced client-side by boundary instead of firing
-// three separate round trips.
+// three separate round trips. istStartOf*/istDateString (lib/order-math.ts)
+// anchor every boundary here to India's calendar, not the server
+// process's own timezone — see their own comments for why that matters.
 export async function getRevenueSummary(supabase: SupabaseClient): Promise<RevenueSummary> {
   const now = new Date();
-  const ytdOrders = await getOrdersSince(supabase, startOfYear(now));
-  const monthStart = startOfMonth(now);
-  const quarterStart = startOfQuarter(now);
+  const ytdOrders = await getOrdersSince(supabase, istStartOfYear(now));
+  const monthStart = istStartOfMonth(now);
+  const quarterStart = istStartOfQuarter(now);
 
   const summarize = (orders: OrderRow[]): PeriodSummary => ({
     revenueRupees: orders.reduce((sum, o) => sum + o.total_rupees, 0),
@@ -104,21 +96,27 @@ export type DailyRevenue = { date: string; revenueRupees: number; orderCount: nu
 // even at ₹0 — a chart with gaps on slow days reads as broken data, not as
 // "no sales that day".
 export async function getDailyRevenueTrend(supabase: SupabaseClient, days = 30): Promise<DailyRevenue[]> {
-  const since = new Date();
-  since.setHours(0, 0, 0, 0);
-  since.setDate(since.getDate() - (days - 1));
+  // IST midnight of today, walked back (days - 1) days via UTC date
+  // arithmetic on that already-correct instant (safe — no DST in UTC or
+  // IST to reinterpret it against), not Date#setDate/setHours, which
+  // would apply the server process's own local calendar instead.
+  const since = istDayStart(istDateString());
+  since.setUTCDate(since.getUTCDate() - (days - 1));
 
   const orders = await getOrdersSince(supabase, since);
 
   const byDay = new Map<string, DailyRevenue>();
   for (let i = 0; i < days; i++) {
     const d = new Date(since);
-    d.setDate(d.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
+    d.setUTCDate(d.getUTCDate() + i);
+    const key = istDateString(d);
     byDay.set(key, { date: key, revenueRupees: 0, orderCount: 0 });
   }
   for (const o of orders) {
-    const bucket = byDay.get(o.created_at.slice(0, 10));
+    // istDateString, not a raw slice of the timestamp string — that was
+    // bucketing by the UTC calendar day, which for an order placed late at
+    // night IST can be the wrong day from an India-based admin's view.
+    const bucket = byDay.get(istDateString(new Date(o.created_at)));
     if (bucket) {
       bucket.revenueRupees += o.total_rupees;
       bucket.orderCount += 1;
@@ -162,7 +160,7 @@ export async function getOrderStatusBreakdown(supabase: SupabaseClient, since: D
 
 export type AdminOrderDetail = {
   id: string;
-  order_number: string;
+  order_number: number;
   created_at: string;
   order_status: string;
   payment_method: string;
@@ -186,11 +184,36 @@ export type AdminOrderDetail = {
   } | null;
 };
 
-// `to` is treated as inclusive of the whole calendar day.
-export async function getOrderList(supabase: SupabaseClient, from: Date, to: Date): Promise<AdminOrderDetail[]> {
-  const inclusiveTo = new Date(to);
-  inclusiveTo.setHours(23, 59, 59, 999);
+const digitsOnly = (s: string) => s.replace(/\D/g, "");
 
+// `from`/`to` must already be exact instants — the caller's job (see
+// lib/order-math.ts's istDayStart/istDayEnd), not this function's. An
+// earlier version took calendar-day Dates and called `to.setHours(23, 59,
+// 59, 999)` here to make `to` inclusive, but Date#setHours mutates using
+// the server process's own local timezone — on a host not running in UTC
+// (e.g. a dev machine set to IST), that silently moved the cutoff hours
+// away from the caller's intended day and made orders placed near the
+// server's local midnight disappear from "today". Resolving both ends to
+// real instants before they ever reach this function removes that whole
+// class of bug instead of just relocating it.
+//
+// `search` matches against order number, customer name/email, and the
+// delivery contact's phone — addresses.recipient_phone, not profiles.phone.
+// profiles.phone is never actually written anywhere in the app (only
+// date_of_birth/gender get saved post-signup in AuthPanel.tsx; checkout
+// only ever writes phone onto the address row, see CheckoutBody.tsx), so
+// it's always null in practice — recipient_phone is the only phone number
+// that's ever really populated. Applied in JS after the fetch rather than
+// as a Postgrest filter: an OR across orders' own column and two joined
+// tables' columns isn't expressible in one Postgrest query, and the admin
+// dashboard's per-range order volume is small enough that this costs
+// nothing real.
+export async function getOrderList(
+  supabase: SupabaseClient,
+  from: Date,
+  to: Date,
+  search?: string
+): Promise<AdminOrderDetail[]> {
   const { data, error } = await supabase
     .from("orders")
     .select(
@@ -200,7 +223,7 @@ export async function getOrderList(supabase: SupabaseClient, from: Date, to: Dat
         "profiles(name, email)"
     )
     .gte("created_at", from.toISOString())
-    .lte("created_at", inclusiveTo.toISOString())
+    .lte("created_at", to.toISOString())
     .order("created_at", { ascending: false });
   if (error) throw error;
 
@@ -210,7 +233,22 @@ export async function getOrderList(supabase: SupabaseClient, from: Date, to: Dat
     profiles: { name: string | null; email: string } | null;
   };
 
-  return ((data ?? []) as unknown as Row[]).map((o) => ({
+  let rows = (data ?? []) as unknown as Row[];
+
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    const q = trimmedSearch.toLowerCase();
+    const qDigits = digitsOnly(trimmedSearch);
+    rows = rows.filter((o) => {
+      if (qDigits && String(o.order_number).includes(qDigits)) return true;
+      if (o.profiles?.name?.toLowerCase().includes(q)) return true;
+      if (o.profiles?.email.toLowerCase().includes(q)) return true;
+      if (qDigits && digitsOnly(o.addresses?.recipient_phone ?? "").includes(qDigits)) return true;
+      return false;
+    });
+  }
+
+  return rows.map((o) => ({
     id: o.id,
     order_number: o.order_number,
     created_at: o.created_at,
@@ -230,6 +268,10 @@ export async function getOrderList(supabase: SupabaseClient, from: Date, to: Dat
 
 export type AdminProductVariant = {
   id: string;
+  // Human-readable 1xxxxx identifier (0017_item_and_promo_ids.sql) — shown
+  // in the admin UI instead of `id`, which stays the real uuid used
+  // everywhere else (cart lines, order lines, RLS).
+  itemId: number;
   sizeLabel: string;
   sku: string;
   priceRupees: number;
@@ -244,6 +286,12 @@ export type AdminProduct = {
   name: string;
   category: string;
   isInStock: boolean; // raw products.is_instock master toggle
+  // is_listed (0018_product_is_listed.sql) — whether this product appears
+  // on the storefront at all, distinct from isInStock (which keeps it
+  // visible but shows it as unpurchasable). Deliberately NOT filtered out
+  // of this admin list when false, unlike lib/products.ts's getAllProducts —
+  // an admin needs to see a hidden product to un-hide it.
+  isListed: boolean;
   variants: AdminProductVariant[];
   // Full descriptive fields — the list view only used the fields above,
   // but editing a product needs everything NewProductForm's create path
@@ -276,6 +324,14 @@ export type AdminProduct = {
   // it as one product-level fact, not a per-size one.
   nutritionBasis: string;
   nutritionRows: [string, string][];
+  // Ordered product_images rows (0014_product_images.sql) — the storefront
+  // carousel this feeds is built from the same table, sorted the same way
+  // (see lib/products.ts's mapRowToProduct). Empty for a product that only
+  // has the legacy imageUrl above and was never given additional photos.
+  productImages: { id: string; imageUrl: string; sortOrder: number }[];
+  // The storefront listing order (0016_product_sort_order.sql) — surfaced
+  // here so ProductsManager.tsx's reorder buttons have something to swap.
+  sortOrder: number;
 };
 
 // Unlike lib/products.ts's getAllProducts (storefront-shaped: folds
@@ -286,17 +342,20 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, slug, name, category, is_instock, badge, badge_style, short_description, description, attributes, " +
+      "id, slug, name, category, is_instock, is_listed, badge, badge_style, short_description, description, attributes, " +
         "gradient, image_url, tab_categories, description_bullets, detail_attrs, usage_bullets, vegetarian, " +
         "ingredients, net_quantity, storage, shelf_life, cart_badge, thumb_gradient, thumb_name_lines, thumb_name_size, " +
-        "product_variants ( id, size_label, sku, price_rupees, stock_quantity, is_instock, unit_label, sort_order, nutrition )"
+        "sort_order, " +
+        "product_variants ( id, item_id, size_label, sku, price_rupees, stock_quantity, is_instock, unit_label, sort_order, nutrition ), " +
+        "product_images ( id, image_url, sort_order )"
     )
-    .order("created_at");
+    .order("sort_order");
   if (error) throw error;
 
   type NutritionJson = { basis?: string; rows?: [string, string][] };
   type VariantRow = {
     id: string;
+    item_id: number;
     size_label: string;
     sku: string;
     price_rupees: number;
@@ -312,6 +371,7 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
     name: string;
     category: string;
     is_instock: boolean;
+    is_listed: boolean;
     badge: string | null;
     badge_style: "dark" | "light" | null;
     short_description: string;
@@ -332,7 +392,9 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
     thumb_gradient: string;
     thumb_name_lines: string[];
     thumb_name_size: string;
+    sort_order: number;
     product_variants: VariantRow[];
+    product_images: { id: string; image_url: string; sort_order: number }[];
   };
 
   return ((data ?? []) as unknown as Row[]).map((row) => {
@@ -340,14 +402,17 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
       (a, b) => a.sort_order - b.sort_order || a.size_label.localeCompare(b.size_label)
     );
     const nutrition = sortedVariants[0]?.nutrition ?? {};
+    const sortedImages = [...row.product_images].sort((a, b) => a.sort_order - b.sort_order);
     return {
       id: row.id,
       slug: row.slug,
       name: row.name,
       category: row.category,
       isInStock: row.is_instock,
+      isListed: row.is_listed,
       variants: sortedVariants.map((v) => ({
         id: v.id,
+        itemId: v.item_id,
         sizeLabel: v.size_label,
         sku: v.sku,
         priceRupees: v.price_rupees,
@@ -377,12 +442,22 @@ export async function getAdminProductList(supabase: SupabaseClient): Promise<Adm
       thumbNameSize: row.thumb_name_size,
       nutritionBasis: nutrition.basis ?? "",
       nutritionRows: nutrition.rows ?? [],
+      productImages: sortedImages.map((img) => ({
+        id: img.id,
+        imageUrl: img.image_url,
+        sortOrder: img.sort_order,
+      })),
+      sortOrder: row.sort_order,
     };
   });
 }
 
 export type AdminPromoCode = {
   id: string;
+  // Human-readable 2xxxxx identifier (0017_item_and_promo_ids.sql),
+  // snake_case to match this type's existing field-naming convention
+  // (unlike AdminProductVariant's camelCase itemId).
+  promo_id: number;
   code: string;
   discount_type: "flat" | "percent";
   discount_value: number;
@@ -401,7 +476,7 @@ export async function getAdminPromoCodeList(supabase: SupabaseClient): Promise<A
   const { data, error } = await supabase
     .from("promo_codes")
     .select(
-      "id, code, discount_type, discount_value, min_order_rupees, active, starts_at, expires_at, promo_code_products ( products ( id, name ) )"
+      "id, promo_id, code, discount_type, discount_value, min_order_rupees, active, starts_at, expires_at, promo_code_products ( products ( id, name ) )"
     )
     .order("code");
   if (error) throw error;
@@ -412,6 +487,7 @@ export async function getAdminPromoCodeList(supabase: SupabaseClient): Promise<A
 
   return ((data ?? []) as unknown as Row[]).map((row) => ({
     id: row.id,
+    promo_id: row.promo_id,
     code: row.code,
     discount_type: row.discount_type,
     discount_value: row.discount_value,

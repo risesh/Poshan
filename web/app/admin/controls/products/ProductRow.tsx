@@ -43,11 +43,13 @@ type VariantState = { isInStock: boolean; stockQuantity: number; saving: boolean
 function VariantRow({
   variant,
   state,
+  productIsInStock,
   onToggle,
   onQuantityCommit,
 }: {
   variant: AdminProductVariant;
   state: VariantState;
+  productIsInStock: boolean;
   onToggle: (next: boolean) => void;
   onQuantityCommit: (next: number) => void;
 }) {
@@ -58,6 +60,7 @@ function VariantRow({
 
   return (
     <div className="admin-controls-variant-row">
+      <span className="admin-controls-variant-row__item-id" title={variant.id}>{variant.itemId}</span>
       <span className="admin-controls-variant-row__size">{variant.sizeLabel}</span>
       <span className="admin-controls-variant-row__sku">{variant.sku}</span>
       <span className="admin-controls-variant-row__price">{formatRupees(variant.priceRupees)}</span>
@@ -79,20 +82,40 @@ function VariantRow({
       </label>
       <Toggle
         checked={state.isInStock}
-        disabled={state.saving}
+        disabled={state.saving || !productIsInStock}
         onChange={onToggle}
-        label={`Toggle ${variant.sizeLabel} availability`}
+        label={
+          productIsInStock
+            ? `Toggle ${variant.sizeLabel} availability`
+            : `Enable the product before enabling ${variant.sizeLabel}`
+        }
       />
       {state.error && <span className="admin-status-select__error">{state.error}</span>}
     </div>
   );
 }
 
-export default function ProductRow({ product, onEdit }: { product: AdminProduct; onEdit: () => void }) {
+export default function ProductRow({
+  product,
+  onEdit,
+  onMoveUp,
+  onMoveDown,
+  isFirst,
+  isLast,
+}: {
+  product: AdminProduct;
+  onEdit: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  isFirst: boolean;
+  isLast: boolean;
+}) {
   const router = useRouter();
   const [expanded, setExpanded] = useState(false);
   const [isInStock, setIsInStock] = useState(product.isInStock);
+  const [isListed, setIsListed] = useState(product.isListed);
   const [saving, setSaving] = useState(false);
+  const [listedSaving, setListedSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleted, setDeleted] = useState(false);
@@ -140,7 +163,16 @@ export default function ProductRow({ product, onEdit }: { product: AdminProduct;
 
   const onToggleProduct = async (next: boolean) => {
     const previous = isInStock;
+    const previousVariantStates = variantStates;
     setIsInStock(next);
+    // Mirrors the server's cascade (app/api/admin/products/[id]/route.ts)
+    // so the admin sees every size flip off immediately, not just the
+    // master switch, without waiting on a refetch.
+    if (!next) {
+      setVariantStates((current) =>
+        Object.fromEntries(Object.entries(current).map(([id, s]) => [id, { ...s, isInStock: false }]))
+      );
+    }
     setSaving(true);
     setError(null);
     const res = await fetch(`/api/admin/products/${product.id}`, {
@@ -151,6 +183,28 @@ export default function ProductRow({ product, onEdit }: { product: AdminProduct;
     setSaving(false);
     if (!res.ok) {
       setIsInStock(previous);
+      setVariantStates(previousVariantStates);
+      setError("Could not save.");
+    }
+  };
+
+  // Fully hides/unhides the product from the storefront (see
+  // 0018_product_is_listed.sql) — separate control from isInStock above,
+  // which keeps a product visible but shown as unpurchasable rather than
+  // removing it from the grid entirely.
+  const onToggleListed = async (next: boolean) => {
+    const previous = isListed;
+    setIsListed(next);
+    setListedSaving(true);
+    setError(null);
+    const res = await fetch(`/api/admin/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isListed: next }),
+    });
+    setListedSaving(false);
+    if (!res.ok) {
+      setIsListed(previous);
       setError("Could not save.");
     }
   };
@@ -201,22 +255,46 @@ export default function ProductRow({ product, onEdit }: { product: AdminProduct;
           onChange={onToggleProduct}
           label={`Toggle ${product.name} availability`}
         />
+        <Toggle
+          checked={isListed}
+          disabled={listedSaving}
+          onChange={onToggleListed}
+          label={`Toggle ${product.name} visibility on the storefront`}
+        />
         <span className={noneAvailableDespiteEnabled ? "admin-controls-stock-warning" : "admin-order-card__muted"}>
           {purchasableCount} of {product.variants.length} size{product.variants.length === 1 ? "" : "s"} in stock
           {noneAvailableDespiteEnabled && " — hidden on site"}
         </span>
         <div className="admin-controls-row__actions" onClick={(e) => e.stopPropagation()}>
+          <button
+            type="button"
+            className="admin-controls-reorder-btn"
+            onClick={onMoveUp}
+            disabled={isFirst}
+            aria-label={`Move ${product.name} up`}
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className="admin-controls-reorder-btn"
+            onClick={onMoveDown}
+            disabled={isLast}
+            aria-label={`Move ${product.name} down`}
+          >
+            ↓
+          </button>
           <button type="button" className="admin-controls-edit-btn" onClick={onEdit} disabled={deleting}>
             Edit
           </button>
           <button
             type="button"
-            className="admin-controls-remove-btn"
+            className="admin-controls-delete-btn"
             aria-label={`Delete ${product.name}`}
             disabled={deleting}
             onClick={onDelete}
           >
-            ×
+            Delete
           </button>
         </div>
       </div>
@@ -228,6 +306,7 @@ export default function ProductRow({ product, onEdit }: { product: AdminProduct;
               key={variant.id}
               variant={variant}
               state={variantStates[variant.id]}
+              productIsInStock={isInStock}
               onToggle={(next) => patchVariant(variant.id, { isInStock: next })}
               onQuantityCommit={(next) => patchVariant(variant.id, { stockQuantity: next })}
             />

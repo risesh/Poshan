@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { fetchVariantsByIds } from "@/lib/products";
+import { IST_TIME_ZONE } from "@/lib/order-math";
 
 // Account-specific order data, gated behind auth (see proxy.ts's
 // PROTECTED_PREFIXES) — zero public search value, same reasoning as
@@ -13,16 +14,21 @@ export const metadata = {
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
+// Explicit timeZone on both — see app/orders/page.tsx's DATE_FMT for why
+// this matters (defaults to server-local otherwise, which can render a
+// calendar day off from what was actually computed/perceived in India).
 const ORDER_DATE_FMT = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
   year: "numeric",
+  timeZone: IST_TIME_ZONE,
 });
 const DELIVERY_DATE_FMT = new Intl.DateTimeFormat("en-GB", {
   weekday: "short",
   day: "numeric",
   month: "short",
   year: "numeric",
+  timeZone: IST_TIME_ZONE,
 });
 
 const PAYMENT_LABEL: Record<string, string> = {

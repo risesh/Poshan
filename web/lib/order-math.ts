@@ -145,12 +145,100 @@ export function computeOrderTotals(
   return { ...pricing, shippingRupees, totalRupees };
 }
 
-export function generateOrderNumber(): string {
-  return `PSN-${Math.floor(10000 + Math.random() * 90000)}`;
+// Every date in this app is meant to be read as an Indian calendar date —
+// the business and every customer are in India — so this is exported for
+// display code (app/orders/page.tsx, app/orders/[id]/page.tsx) to format
+// created_at/estimated_delivery with too, not just used here.
+export const IST_TIME_ZONE = "Asia/Kolkata";
+
+// getDate()/setDate() below would silently use whatever timezone the Node
+// process itself happens to be running in (UTC in production on most
+// hosts, but not guaranteed, and not necessarily IST even in local dev) —
+// an order placed late at night IST could land on the *previous* day in
+// UTC, quietly turning "+2 days" into "+1" from the customer's actual
+// perspective. Extracting the y/m/d in IST first, then doing the +2 in
+// UTC (safe — UTC has no DST to reinterpret the components against),
+// makes the result depend only on the order's real instant, never on
+// server timezone.
+function istDateParts(d: Date): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: IST_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(d);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)!.value);
+  return { year: get("year"), month: get("month"), day: get("day") };
 }
 
 export function estimatedDeliveryDate(fromCreatedAt: Date = new Date()): string {
-  const d = new Date(fromCreatedAt);
-  d.setDate(d.getDate() + 2);
-  return d.toISOString().slice(0, 10);
+  const { year, month, day } = istDateParts(fromCreatedAt);
+  const d = new Date(Date.UTC(year, month - 1, day));
+  d.setUTCDate(d.getUTCDate() + 2);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// Today's (or any instant's) IST calendar date as "YYYY-MM-DD" — for admin
+// date-range filters (app/admin/orders/page.tsx and its CSV export route)
+// to default to/parse against, so "today"/"last 30 days" means the same
+// thing an India-based admin means by those words, not whatever calendar
+// day the server process's own timezone happens to be on.
+export function istDateString(d: Date = new Date()): string {
+  const { year, month, day } = istDateParts(d);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// IST calendar date `days` days before `from` — callers wanting e.g. "30
+// days ago" as a default should use this instead of writing
+// `new Date(Date.now() - N * 86400000)` themselves, which React's purity
+// lint flags as an impure call inline in a Server Component's render body
+// (the `= new Date()` default parameter shape every other now-defaulted
+// helper here uses doesn't trip that rule).
+export function istDateDaysAgo(days: number, from: Date = new Date()): string {
+  const d = istDayStart(istDateString(from));
+  d.setUTCDate(d.getUTCDate() - days);
+  return istDateString(d);
+}
+
+// India has no DST, so "00:00:00 IST" on a given calendar date is always
+// exactly UTC-5:30 — parsing with that fixed offset gives the precise
+// instant regardless of the server process's own timezone (unlike a bare
+// "YYYY-MM-DDT00:00:00", which Date parses as *server-local* time).
+export function istDayStart(dateStr: string): Date {
+  return new Date(`${dateStr}T00:00:00+05:30`);
+}
+
+// One millisecond before the next day's IST midnight — the last instant of
+// `dateStr` in IST. Plain epoch-millisecond arithmetic on istDayStart's
+// already-correct instant, rather than Date#setHours(23,59,59,999) (which
+// would reinterpret "23:59:59.999" in the server's own local timezone and
+// reintroduce the same bug this exists to avoid).
+export function istDayEnd(dateStr: string): Date {
+  return new Date(istDayStart(dateStr).getTime() + 24 * 60 * 60 * 1000 - 1);
+}
+
+// IST-anchored MTD/QTD/YTD period boundaries for the admin dashboard
+// (app/admin/page.tsx, lib/admin-data.ts's getRevenueSummary etc.) — same
+// reasoning as every other IST helper here: Date#getFullYear()/getMonth()
+// read the server process's own local calendar, which for a few hours
+// around any month/quarter/year boundary can disagree with what date it
+// actually is in India, silently including or excluding a day's revenue
+// from "this month" depending on where the server happens to be running.
+export function istStartOfMonth(d: Date = new Date()): Date {
+  const { year, month } = istDateParts(d);
+  return istDayStart(`${year}-${String(month).padStart(2, "0")}-01`);
+}
+
+export function istStartOfQuarter(d: Date = new Date()): Date {
+  const { year, month } = istDateParts(d);
+  const quarterStartMonth = Math.floor((month - 1) / 3) * 3 + 1;
+  return istDayStart(`${year}-${String(quarterStartMonth).padStart(2, "0")}-01`);
+}
+
+export function istStartOfYear(d: Date = new Date()): Date {
+  const { year } = istDateParts(d);
+  return istDayStart(`${year}-01-01`);
 }

@@ -3,8 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminPromoCode } from "@/lib/admin-data";
+import { IST_TIME_ZONE } from "@/lib/order-math";
 
-const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+// Explicit timeZone — without it this renders in the viewing admin's own
+// browser timezone, which may not be IST and could show a start/expiry
+// date a day off from what the promo was actually set to in
+// PromoCodeForm.tsx (now IST-based via istDayStart/istDayEnd).
+const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: IST_TIME_ZONE });
 
 function formatDiscount(promo: AdminPromoCode): string {
   const discount = promo.discount_type === "percent" ? `${promo.discount_value}% off` : `₹${promo.discount_value} off`;
@@ -74,6 +79,7 @@ export default function PromoCodeRow({
 
   return (
     <div className="admin-controls-table__row admin-controls-table__row--promo">
+      <span className="admin-controls-promo-code">{promo.promo_id}</span>
       <span className="admin-controls-promo-code">{promo.code}</span>
       <span>{formatDiscount(promo)}</span>
       <span className="admin-order-card__muted">

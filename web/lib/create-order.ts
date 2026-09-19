@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeOrderTotals, generateOrderNumber, estimatedDeliveryDate, MIN_ORDER_RUPEES } from "./order-math";
+import { computeOrderTotals, estimatedDeliveryDate, MIN_ORDER_RUPEES } from "./order-math";
 import { lookupPromoCode } from "./promo";
 import { fetchVariantsByIds } from "./products";
 import { getAddressCoordinates, distanceFromFulfillmentCenterKm } from "./shipping";
@@ -70,38 +70,33 @@ export async function createOrder(
     );
   }
 
-  let orderId: string | null = null;
-  let orderNumber = "";
-  for (let attempt = 0; attempt < 5 && !orderId; attempt++) {
-    orderNumber = generateOrderNumber();
-    const { data, error } = await supabase
-      .from("orders")
-      .insert({
-        order_number: orderNumber,
-        user_id: userId,
-        address_id: addressId,
-        payment_method: payment.method,
-        payment_status: payment.method === "cod" ? "pending" : "paid",
-        payment_provider: payment.method === "cod" ? null : "razorpay",
-        payment_id: payment.method === "cod" ? null : payment.paymentId,
-        subtotal_rupees: totals.subtotalRupees,
-        shipping_rupees: totals.shippingRupees,
-        discount_rupees: totals.discountRupees,
-        total_rupees: totals.totalRupees,
-        estimated_delivery: estimatedDeliveryDate(),
-      })
-      .select("id")
-      .single();
+  // order_number isn't set here — it defaults from orders_order_number_seq
+  // (supabase/migrations/0019_order_number_sequence.sql), the same
+  // sequence-backed-column pattern as product_variants.item_id /
+  // promo_codes.promo_id (0017_item_and_promo_ids.sql), so no
+  // collision-retry loop is needed the way the old client-generated random
+  // PSN-NNNNN number required.
+  const { data, error } = await supabase
+    .from("orders")
+    .insert({
+      user_id: userId,
+      address_id: addressId,
+      payment_method: payment.method,
+      payment_status: payment.method === "cod" ? "pending" : "paid",
+      payment_provider: payment.method === "cod" ? null : "razorpay",
+      payment_id: payment.method === "cod" ? null : payment.paymentId,
+      subtotal_rupees: totals.subtotalRupees,
+      shipping_rupees: totals.shippingRupees,
+      discount_rupees: totals.discountRupees,
+      total_rupees: totals.totalRupees,
+      estimated_delivery: estimatedDeliveryDate(),
+    })
+    .select("id, order_number")
+    .single();
 
-    if (!error && data) {
-      orderId = data.id as string;
-    } else if (error && error.code !== "23505") {
-      // Not a unique-violation on order_number — a real failure, stop retrying.
-      throw error;
-    }
-  }
-
-  if (!orderId) throw new Error("Could not generate a unique order number");
+  if (error) throw error;
+  const orderId = data.id as string;
+  const orderNumber = data.order_number as number;
 
   const { error: itemsError } = await supabase.from("order_items").insert(
     totals.items.map((item) => ({

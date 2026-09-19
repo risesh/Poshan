@@ -1,29 +1,33 @@
 import { createClient } from "@/lib/supabase/server";
 import { getOrderList } from "@/lib/admin-data";
+import { IST_TIME_ZONE, istDateString, istDateDaysAgo, istDayStart, istDayEnd } from "@/lib/order-math";
 import OrdersFilterBar from "./OrdersFilterBar";
 import OrderStatusSelect from "./OrderStatusSelect";
 
 export const metadata = { title: "Orders" };
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
-const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-
-function isoDate(d: Date): string {
-  return d.toISOString().slice(0, 10);
-}
+// Explicit timeZone — see lib/order-math.ts's estimatedDeliveryDate/
+// IST_TIME_ZONE note on why formatting a date without this can render a
+// calendar day off from what actually happened in India.
+const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: IST_TIME_ZONE });
 
 export default async function AdminOrdersPage(props: PageProps<"/admin/orders">) {
   const params = await props.searchParams;
 
-  const today = new Date();
-  const defaultFrom = new Date(today);
-  defaultFrom.setDate(defaultFrom.getDate() - 29);
+  // IST calendar dates throughout — see istDateString/istDayStart/istDayEnd
+  // in lib/order-math.ts for why "today"/"the last 30 days" has to be
+  // resolved against India's calendar day, not whatever timezone this
+  // server process happens to be running in.
+  const todayStr = istDateString();
+  const defaultFromStr = istDateDaysAgo(29);
 
-  const fromStr = typeof params.from === "string" ? params.from : isoDate(defaultFrom);
-  const toStr = typeof params.to === "string" ? params.to : isoDate(today);
+  const fromStr = typeof params.from === "string" ? params.from : defaultFromStr;
+  const toStr = typeof params.to === "string" ? params.to : todayStr;
+  const searchStr = typeof params.q === "string" ? params.q : "";
 
   const supabase = await createClient();
-  const orders = await getOrderList(supabase, new Date(`${fromStr}T00:00:00`), new Date(`${toStr}T00:00:00`));
+  const orders = await getOrderList(supabase, istDayStart(fromStr), istDayEnd(toStr), searchStr);
 
   // Excludes cancelled orders — matches how "revenue" is defined on the
   // dashboard (lib/admin-data.ts), so the two views never disagree on what
@@ -37,7 +41,7 @@ export default async function AdminOrdersPage(props: PageProps<"/admin/orders">)
     <div className="admin-page">
       <h1 className="admin-page__title">Orders</h1>
 
-      <OrdersFilterBar from={fromStr} to={toStr} />
+      <OrdersFilterBar from={fromStr} to={toStr} search={searchStr} />
 
       <div className="admin-card admin-orders-summary">
         <div>
@@ -48,10 +52,22 @@ export default async function AdminOrdersPage(props: PageProps<"/admin/orders">)
           <div className="admin-stat-card__label">Revenue (excl. cancelled)</div>
           <div className="admin-stat-card__value">{formatRupees(revenueRupees)}</div>
         </div>
+        {/* Plain link, not a client-side blob download — the export route
+            (app/api/admin/orders/export/route.ts) streams the CSV straight
+            from the same from/to/q this page is currently showing, so
+            what's downloaded always matches what's on screen. */}
+        <a
+          className="admin-filter-bar__apply admin-orders-export-btn"
+          href={`/api/admin/orders/export?from=${encodeURIComponent(fromStr)}&to=${encodeURIComponent(toStr)}${searchStr ? `&q=${encodeURIComponent(searchStr)}` : ""}`}
+        >
+          Download CSV
+        </a>
       </div>
 
       {orders.length === 0 ? (
-        <div className="admin-chart-empty">No orders in this date range.</div>
+        <div className="admin-chart-empty">
+          {searchStr ? "No orders match your search in this date range." : "No orders in this date range."}
+        </div>
       ) : (
         <div className="admin-orders-list">
           {orders.map((order) => (
@@ -68,6 +84,13 @@ export default async function AdminOrdersPage(props: PageProps<"/admin/orders">)
                   <div className="admin-order-card__label">Customer</div>
                   <div>{order.customer_name || "—"}</div>
                   <div className="admin-order-card__muted">{order.customer_email}</div>
+                  {/* The account's own profiles.phone is never actually
+                      saved anywhere in the app — this is the delivery
+                      contact number from the order's address instead (see
+                      getOrderList's comment in lib/admin-data.ts). */}
+                  {order.address?.recipient_phone && (
+                    <div className="admin-order-card__muted">{order.address.recipient_phone}</div>
+                  )}
                 </div>
                 <div className="admin-order-card__col">
                   <div className="admin-order-card__label">Products</div>

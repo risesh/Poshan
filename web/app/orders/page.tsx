@@ -1,6 +1,7 @@
 import { Fragment } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { IST_TIME_ZONE } from "@/lib/order-math";
 import Footer from "@/app/components/Footer";
 
 // Account-specific order history, gated behind auth — same reasoning as
@@ -12,7 +13,12 @@ export const metadata = {
 };
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
-const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+// Explicit timeZone — without it this defaults to wherever the server
+// process happens to run (UTC in production isn't guaranteed, and local
+// dev is whatever the machine's set to), which could render created_at/
+// estimated_delivery a calendar day off from what the order was actually
+// computed against (see estimatedDeliveryDate's own note on this).
+const DATE_FMT = new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: IST_TIME_ZONE });
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "Pending",

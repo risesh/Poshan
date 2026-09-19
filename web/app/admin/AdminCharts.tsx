@@ -55,14 +55,19 @@ const METHOD_LABEL: Record<string, string> = {
   cod: "Cash on Delivery",
 };
 
-function StatCard({ label, revenueRupees, orderCount }: { label: string; revenueRupees: number; orderCount: number }) {
+// orderCount is optional — QTD/YTD only ever show the revenue figure now,
+// per request; MTD keeps the order-count line since that wasn't asked to
+// change.
+function StatCard({ label, revenueRupees, orderCount }: { label: string; revenueRupees: number; orderCount?: number }) {
   return (
     <div className="admin-card admin-stat-card">
       <div className="admin-stat-card__label">{label}</div>
       <div className="admin-stat-card__value">{formatRupees(revenueRupees)}</div>
-      <div className="admin-stat-card__sub">
-        {orderCount} order{orderCount === 1 ? "" : "s"}
-      </div>
+      {orderCount !== undefined && (
+        <div className="admin-stat-card__sub">
+          {orderCount} order{orderCount === 1 ? "" : "s"}
+        </div>
+      )}
     </div>
   );
 }
@@ -113,8 +118,8 @@ export default function AdminCharts({
 
       <div className="admin-stat-grid">
         <StatCard label="Revenue — MTD" revenueRupees={summary.mtd.revenueRupees} orderCount={summary.mtd.orderCount} />
-        <StatCard label="Revenue — QTD" revenueRupees={summary.qtd.revenueRupees} orderCount={summary.qtd.orderCount} />
-        <StatCard label="Revenue — YTD" revenueRupees={summary.ytd.revenueRupees} orderCount={summary.ytd.orderCount} />
+        <StatCard label="Revenue — QTD" revenueRupees={summary.qtd.revenueRupees} />
+        <StatCard label="Revenue — YTD" revenueRupees={summary.ytd.revenueRupees} />
       </div>
 
       <div className="admin-chart-grid">

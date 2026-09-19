@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { isAdminEmail } from "@/lib/admin";
 
-type ToastOrder = { orderNumber: string; totalRupees: number };
+type ToastOrder = { orderNumber: number; totalRupees: number };
 
 const formatRupees = (n: number) => "₹" + n.toLocaleString("en-IN");
 
@@ -36,7 +36,7 @@ export default function NewOrderListener() {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "orders" },
         (payload) => {
-          const row = payload.new as { order_number: string; total_rupees: number };
+          const row = payload.new as { order_number: number; total_rupees: number };
           setToast({ orderNumber: row.order_number, totalRupees: row.total_rupees });
         }
       )

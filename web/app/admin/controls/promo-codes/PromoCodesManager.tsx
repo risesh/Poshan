@@ -33,6 +33,7 @@ export default function PromoCodesManager({
         ) : (
           <div className="admin-controls-table">
             <div className="admin-controls-table__head admin-controls-table__head--promo">
+              <span>Promo ID</span>
               <span>Code</span>
               <span>Discount</span>
               <span>Scope</span>

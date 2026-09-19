@@ -26,6 +26,21 @@ export async function PATCH(
     stockQuantity?: number;
   };
 
+  // A variant can't be turned on while its product's master switch is off
+  // — mirrors the admin UI disabling this toggle in that state (see
+  // ProductRow.tsx), enforced here too since the master-off PATCH above
+  // cascades is_instock=false onto every variant and this stops that from
+  // being silently undone by an unrelated variant-only request.
+  if (isInStock === true) {
+    const { data: product } = await supabase.from("products").select("is_instock").eq("id", id).single();
+    if (!product?.is_instock) {
+      return NextResponse.json(
+        { error: "Enable the product before enabling one of its sizes." },
+        { status: 400 }
+      );
+    }
+  }
+
   const update: Record<string, boolean | number> = {};
   if (typeof isInStock === "boolean") update.is_instock = isInStock;
   if (typeof stockQuantity === "number") {

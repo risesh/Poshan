@@ -1,6 +1,7 @@
 "use client";
 
 import type { AdminPromoCode } from "@/lib/admin-data";
+import { istDateString } from "@/lib/order-math";
 
 // Shared field set for both create and edit modes of PromoCodeForm — same
 // shape either way, just seeded from an empty form vs. an existing promo
@@ -31,13 +32,15 @@ export const emptyPromoCodeForm = (): PromoCodeFormValue => ({
   selectedProductIds: [],
 });
 
-// <input type="date"> wants YYYY-MM-DD. Submitting round-trips a date
-// through new Date(startsAt).toISOString(), i.e. midnight UTC on that
-// calendar date — slicing the ISO string back to its date component here
-// (rather than formatting in local time) undoes that symmetrically instead
-// of drifting a day depending on the admin's timezone.
+// <input type="date"> wants YYYY-MM-DD. PromoCodeForm.tsx's submit-time
+// serialization now goes through istDayStart/istDayEnd (IST, not UTC
+// midnight) — this has to invert that with the same istDateString helper,
+// not a raw ISO-string slice, since istDayStart specifically crosses the
+// UTC date boundary backward (IST midnight is 18:30 the previous day in
+// UTC) and a plain slice would show the admin a date one day earlier than
+// what they actually picked.
 function toDateInputValue(iso: string | null): string {
-  return iso ? iso.slice(0, 10) : "";
+  return iso ? istDateString(new Date(iso)) : "";
 }
 
 // Pre-fills the edit form from an existing promo code — the inverse of

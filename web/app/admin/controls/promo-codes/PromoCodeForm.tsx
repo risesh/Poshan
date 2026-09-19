@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { AdminPromoCode } from "@/lib/admin-data";
+import { istDayStart, istDayEnd } from "@/lib/order-math";
 import PromoCodeFields, { emptyPromoCodeForm, promoToFormValue, type PromoCodeFormValue } from "./PromoCodeFields";
 
 // Rendered both above and below the field list — repeated at the top so
@@ -84,8 +85,14 @@ export default function PromoCodeForm({
         discountType: form.discountType,
         discountValue: Number(form.discountValue),
         minOrderRupees: Number(form.minOrderRupees) || 0,
-        startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
-        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+        // IST midnight of the picked date, not UTC midnight (new Date(str)
+        // on a bare "YYYY-MM-DD") — that was quietly starting/expiring
+        // promos 5.5 hours off from what the date picker actually showed.
+        // expiresAt uses the *end* of the picked day so the code stays
+        // valid through the whole date an admin selects as the last day,
+        // not from its very first instant.
+        startsAt: form.startsAt ? istDayStart(form.startsAt).toISOString() : null,
+        expiresAt: form.expiresAt ? istDayEnd(form.expiresAt).toISOString() : null,
         productIds: form.scopeMode === "specific" ? form.selectedProductIds : [],
       }),
     });
